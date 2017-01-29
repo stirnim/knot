@@ -18,6 +18,7 @@
 #include <getopt.h>
 #include <stdio.h>
 #include <libgen.h>
+#include <time.h>
 
 #include "libknot/libknot.h"
 #include "utils/common/params.h"
@@ -33,6 +34,8 @@ static void print_help(void)
 	       "Parameters:\n"
 	       " -o, --origin <zone_origin>  Zone name.\n"
 	       "                              (default filename or filename without .zone)\n"
+	       " -t, --time <timestamp>|<YEAR-MONTH-DAY>|<+/-><[<DAYS>d][<HOURS>h][<MINUTES>m][SECONDS]>"
+	       "			    (second format converts local time to UNIX)"
 	       " -v, --verbose               Enable debug output.\n"
 	       " -h, --help                  Print the program help.\n"
 	       " -V, --version               Print the program version.\n"
@@ -40,15 +43,43 @@ static void print_help(void)
 	       PROGRAM_NAME);
 }
 
+time_t process_time_shift(char *time)
+{
+	time_t value = 0, tmp_value = 0;
+	char *tmp;
+
+	do {
+		tmp_value = strtol(time, &tmp, 10);
+		switch (tmp[0]) {
+		case 'd':
+			value += tmp_value * 86400;
+			break;
+		case 'h':
+			value += tmp_value * 3600;
+			break;
+		case 'm':
+			value += tmp_value * 60;
+			break;
+		case '\0':
+			return value += tmp_value;
+		}
+		time = tmp + 1;
+	} while (time[0] != '\0');
+
+	return value;
+}
+
 int main(int argc, char *argv[])
 {
 	const char *origin = NULL;
 	bool verbose = false;
+	time_t context_time = time(NULL);
 	FILE *outfile = stdout;
 
 	/* Long options. */
 	struct option opts[] = {
 		{ "origin",  required_argument, NULL, 'o' },
+		{ "time",    required_argument, NULL, 't' },
 		{ "verbose", no_argument,       NULL, 'v' },
 		{ "help",    no_argument,       NULL, 'h' },
 		{ "version", no_argument,       NULL, 'V' },
@@ -57,7 +88,7 @@ int main(int argc, char *argv[])
 
 	/* Parse command line arguments */
 	int opt = 0;
-	while ((opt = getopt_long(argc, argv, "o:vVh", opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "o:t:vVh", opts, NULL)) != -1) {
 		switch (opt) {
 		case 'o':
 			origin = optarg;
@@ -71,6 +102,23 @@ int main(int argc, char *argv[])
 		case 'V':
 			print_version(PROGRAM_NAME);
 			return EXIT_SUCCESS;
+		case 't':
+			if (optarg[0] == '+' || optarg[0] == '-') {
+				context_time = (optarg[0] == '+')?
+					    context_time + process_time_shift(optarg+1):
+					    context_time - process_time_shift(optarg+1);
+			} else {
+				struct tm tm = { 0 };
+				printf("opt %s\n", optarg);
+				if (strptime(optarg, "%Y-%m-%d", &tm) == NULL) {
+					if (strptime(optarg, "%s", &tm) == NULL) {
+						fprintf(outfile, "Invalid time.\n");
+						return -1;
+					}
+				}
+				context_time = mktime(&tm);
+			}
+			break;
 		default:
 			print_help();
 			return EXIT_FAILURE;
@@ -112,7 +160,7 @@ int main(int argc, char *argv[])
 
 	knot_dname_t *dname = knot_dname_from_str_alloc(zonename);
 	free(zonename);
-	int ret = zone_check(filename, dname, outfile);
+	int ret = zone_check(filename, dname, outfile, context_time);
 	knot_dname_free(&dname, NULL);
 
 	log_close();

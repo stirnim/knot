@@ -25,6 +25,10 @@ Options
   Zone origin. If not specified, the origin is determined from the file name
   (possibly removing the ``.zone`` suffix).
 
+**-t**, **--time** *time*
+  Specify to check zone for different time (key expiration).
+  Use timestamp, YYYY-MM-DD format or +/- time.
+
 **-v**, **--verbose**
   Enable debug output.
 

@@ -114,11 +114,12 @@ struct err_handler {
  * \param zone Zone to be searched / checked
  * \param optional To do also optional check
  * \param handler Semantic error handler.
+ * \param context Check zone for given time (rrsig expiration)
  * \retval KNOT_EOK no error found
  * \retval KNOT_ESEMCHECK found semantic error
  * \retval KNOT_EINVAL or other error
  */
 int zone_do_sem_checks(zone_contents_t *zone, bool optional,
-                       err_handler_t *handler);
+                       err_handler_t *handler, time_t context);
 
 /*! @} */

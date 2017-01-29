@@ -78,10 +78,10 @@ static void print_statistics(err_handler_stats_t *handler)
 }
 
 int zone_check(const char *zone_file, const knot_dname_t *zone_name,
-               FILE *outfile)
+	       FILE *outfile, time_t context)
 {
 	zloader_t zl;
-	int ret = zonefile_open(&zl, zone_file, zone_name, true);
+	int ret = zonefile_open(&zl, zone_file, zone_name, true, context);
 	if (ret != KNOT_EOK) {
 		return ret;
 	}

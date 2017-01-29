@@ -46,6 +46,7 @@ typedef struct zloader {
 	err_handler_t *err_handler;  /*!< Semantic checks error handler. */
 	zcreator_t *creator;         /*!< Loader context. */
 	zs_scanner_t scanner;        /*!< Zone scanner. */
+	time_t time;		     /*!< time for zone check */
 } zloader_t;
 
 typedef struct {
@@ -64,12 +65,13 @@ int err_handler_logger(err_handler_t *handler, const zone_contents_t *zone,
  * \param source Source file name.
  * \param origin Zone origin.
  * \param semantic_checks Perform semantic checks.
+ * \param time Time for semantic check
  *
  * \retval Initialized loader on success.
  * \retval NULL on error.
  */
 int zonefile_open(zloader_t *loader, const char *source,
-                  const knot_dname_t *origin, bool semantic_checks);
+                  const knot_dname_t *origin, bool semantic_checks, time_t time);
 
 /*!
  * \brief Loads zone from a zone file.
