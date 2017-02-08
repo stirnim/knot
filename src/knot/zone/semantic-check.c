@@ -72,7 +72,7 @@ static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 	[-ZC_ERR_NSEC3_INSECURE_DELEGATION_OPT] =
 	"insecure delegation outside NSEC3 opt-out",
 	[-ZC_ERR_NSEC3_TTL] =
-	"wrong NSEC3 TLL",
+	"wrong Original TTL in NSEC3",
 	[-ZC_ERR_NSEC3_RDATA_CHAIN] =
 	"incoherent NSEC3 chain",
 	[-ZC_ERR_NSEC3_EXTRA_RECORD] =
