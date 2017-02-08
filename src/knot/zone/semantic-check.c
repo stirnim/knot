@@ -77,6 +77,8 @@ static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 	"incoherent NSEC3 chain",
 	[-ZC_ERR_NSEC3_EXTRA_RECORD] =
 	"invalid record type in NSEC3 chain",
+	[-ZC_ERR_NSEC3_RDATA_BITMAP] =
+	"incorrect type bitmap in NSEC3",
 
 	[-ZC_ERR_CNAME_EXTRA_RECORDS] =
 	"other records exist at CNAME",
@@ -478,7 +480,7 @@ static int check_nsec_bitmap(const zone_node_t *node, semchecks_data_t *data)
 	    memcmp(node_wire, nsec_wire, node_wire_size) != 0) {
 		ret = data->handler->cb(data->handler,
 		                        data->zone, node,
-		                        ZC_ERR_NSEC_RDATA_BITMAP,
+					(data->level & NSEC)? ZC_ERR_NSEC_RDATA_BITMAP : ZC_ERR_NSEC3_RDATA_BITMAP,
 		                        NULL);
 	}
 
