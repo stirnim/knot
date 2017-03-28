@@ -42,6 +42,7 @@ typedef struct {
 } srv_info_t;
 
 typedef struct {
+	node_t n;
 	/*! Socket descriptor. */
 	int	sockfd;
 
