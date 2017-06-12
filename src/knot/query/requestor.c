@@ -243,6 +243,7 @@ static int request_consume(struct knot_requestor *req,
 
 	ret = knot_pkt_parse(last->resp, 0);
 	if (ret != KNOT_EOK) {
+		log_warning("knot_pkt_parse");
 		return ret;
 	}
 

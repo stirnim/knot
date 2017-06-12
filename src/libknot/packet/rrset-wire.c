@@ -87,7 +87,7 @@ static int write_rdata_fixed(const uint8_t **src, size_t *src_avail,
 	/* Check input/output buffer boundaries */
 
 	if (size > *src_avail) {
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	if (size > *dst_avail) {
@@ -206,7 +206,7 @@ static int rdata_len_block(const uint8_t **src, size_t *src_avail,
 			return compr_size;
 		}
 		if (compr_size == 0) {
-			return KNOT_EMALF;
+			printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 		}
 
 		ret = knot_dname_realsize(*src, pkt_wire);
@@ -236,7 +236,7 @@ static int rdata_len_block(const uint8_t **src, size_t *src_avail,
 		assert(block_type > 0);
 		ret = block_type;
 		if (*src_avail < ret) {
-			return KNOT_EMALF;
+			printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 		}
 
 		*src += ret;
@@ -269,7 +269,7 @@ static int rdata_len(const uint8_t **src, size_t *src_avail,
 
 	if (_src_avail > 0) {
 		/* Trailing data in message. */
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	return _len;
@@ -459,7 +459,7 @@ static int write_rdata(const knot_rrset_t *rrset, uint16_t rrset_index,
 
 	if (src_avail > 0) {
 		/* Trailing data in the message. */
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	/* Write final RDLENGTH */
@@ -532,12 +532,12 @@ static int parse_header(const uint8_t *pkt_wire, size_t *pos, size_t pkt_size,
 
 	knot_dname_t *owner = knot_dname_parse(pkt_wire, pos, pkt_size, mm);
 	if (owner == NULL) {
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	if (pkt_size - *pos < RR_HEADER_SIZE) {
 		knot_dname_free(&owner, mm);
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	wire_ctx_t wire = wire_ctx_init_const(pkt_wire, pkt_size);
@@ -557,7 +557,7 @@ static int parse_header(const uint8_t *pkt_wire, size_t *pos, size_t pkt_size,
 
 	if (wire_ctx_available(&wire) < *rdlen) {
 		knot_dname_free(&owner, mm);
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	knot_rrset_init(rrset, owner, type, rclass);
@@ -621,7 +621,7 @@ static int parse_rdata(const uint8_t *pkt_wire, size_t *pos, size_t pkt_size,
 	assert(rrset);
 
 	if (pkt_size - *pos < rdlength) {
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	const knot_rdata_descriptor_t *desc = knot_get_rdata_descriptor(rrset->type);
@@ -633,7 +633,7 @@ static int parse_rdata(const uint8_t *pkt_wire, size_t *pos, size_t pkt_size,
 		if (allow_zero_rdata(rrset, desc)) {
 			return knot_rrset_add_rdata(rrset, NULL, 0, ttl, mm);
 		} else {
-			return KNOT_EMALF;
+			printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 		}
 	}
 
@@ -649,7 +649,7 @@ static int parse_rdata(const uint8_t *pkt_wire, size_t *pos, size_t pkt_size,
 
 	if (buffer_size > MAX_RDLENGTH) {
 		/* DNAME compression caused RDATA overflow. */
-		return KNOT_EMALF;
+		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
 	}
 
 	knot_rdataset_t *rrs = &rrset->rrs;

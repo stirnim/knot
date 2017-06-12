@@ -17,6 +17,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "libknot/attribute.h"
 #include "libknot/packet/pkt.h"
@@ -633,6 +634,7 @@ int knot_pkt_parse_question(knot_pkt_t *pkt)
 
 	/* Check at least header size. */
 	if (pkt->size < KNOT_WIRE_HEADER_SIZE) {
+		printf("EMALF1(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
@@ -642,6 +644,7 @@ int knot_pkt_parse_question(knot_pkt_t *pkt)
 	/* Check QD count. */
 	uint16_t qd = knot_wire_get_qdcount(pkt->wire);
 	if (qd > 1) {
+		printf("EMALF2(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
@@ -656,12 +659,14 @@ int knot_pkt_parse_question(knot_pkt_t *pkt)
 	                                pkt->wire + pkt->size,
 	                                NULL /* No compression in QNAME. */);
 	if (len <= 0) {
+		printf("EMALF3(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
 	/* Check QCLASS/QTYPE size. */
 	uint16_t question_size = len + 2 * sizeof(uint16_t); /* QCLASS + QTYPE */
 	if (pkt->parsed + question_size > pkt->size) {
+		printf("EMALF4(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
@@ -674,10 +679,13 @@ int knot_pkt_parse_question(knot_pkt_t *pkt)
 /* \note Private for check_rr_constraints(). */
 #define CHECK_AR_CONSTRAINTS(pkt, rr, var, check_func) \
 	if ((pkt)->current != KNOT_ADDITIONAL) { \
+		printf("EMALF-CONSTRAINTS1\n");\
 		return KNOT_EMALF; \
 	} else if ((pkt)->var != NULL) { \
+		printf("EMALF-CONSTRAINTS2\n");\
 		return KNOT_EMALF; \
 	} else if (!check_func(rr)) { \
+		printf("EMALF-CONSTRAINTS3\n");\
 		return KNOT_EMALF; \
 	} else { \
 		(pkt)->var = rr; \
@@ -795,6 +803,7 @@ int knot_pkt_parse_payload(knot_pkt_t *pkt, unsigned flags)
 	                  knot_wire_get_arcount(pkt->wire);
 
 	if (rr_count > pkt->size / KNOT_WIRE_RR_MIN_SIZE) {
+		printf("EMALF1(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
@@ -819,12 +828,14 @@ int knot_pkt_parse_payload(knot_pkt_t *pkt, unsigned flags)
 	if (pkt->tsig_rr != NULL) {
 		const knot_rrset_t *last_rr = knot_pkt_rr(ar, ar->count - 1);
 		if (ar->count > 0 && pkt->tsig_rr->rrs.data != last_rr->rrs.data) {
+			printf("EMALF2(%s)\n", __FUNCTION__);
 			return KNOT_EMALF;
 		}
 	}
 
 	/* Check for trailing garbage. */
 	if (pkt->parsed < pkt->size) {
+		printf("EMALF3(%s)\n", __FUNCTION__);
 		return KNOT_EMALF;
 	}
 
