@@ -718,5 +718,9 @@ int knot_rrset_rr_from_wire(const uint8_t *pkt_wire, size_t *pos, size_t pkt_siz
 		}
 	}
 
+	char buff[KNOT_DNAME_TXT_MAXLEN] = "";
+	knot_dname_to_str(buff, rrset->owner, sizeof(buff));
+	printf("parsed rr for owner (%s), type (%u)\n", buff, rrset->type);
+
 	return KNOT_EOK;
 }
