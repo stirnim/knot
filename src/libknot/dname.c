@@ -44,7 +44,7 @@ int knot_dname_wire_check(const uint8_t *name, const uint8_t *endp,
                           const uint8_t *pkt)
 {
 	if (name == NULL || name == endp)
-		printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
+		 { printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF; }
 
 	int wire_len = 0;
 	int name_len = 1; /* Keep \x00 terminal label in advance. */
@@ -64,7 +64,7 @@ int knot_dname_wire_check(const uint8_t *name, const uint8_t *endp,
 				return KNOT_EINVAL;
 			uint16_t ptr = knot_wire_get_pointer(name);
 			if (ptr >= (name - pkt))
-				printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
+		 		{ printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF; }
 
 			name = pkt + ptr; /* Hop to compressed label */
 			if (!is_compressed) { /* Measure compressed size only */
@@ -74,11 +74,11 @@ int knot_dname_wire_check(const uint8_t *name, const uint8_t *endp,
 		} else {
 			/* Check label length. */
 			if (*name > KNOT_DNAME_MAXLABELLEN)
-				printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
+				 { printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF; }
 			/* Check if there's enough space. */
 			int lblen = *name + 1;
 			if (name_len + lblen > KNOT_DNAME_MAXLEN)
-				printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
+				 { printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF; }
 			/* Update wire size only for noncompressed part. */
 			name_len += lblen;
 			if (!is_compressed)
@@ -755,7 +755,7 @@ int knot_dname_labels(const uint8_t *name, const uint8_t *pkt)
 		++count;
 		name = knot_wire_next_label((uint8_t *)name, (uint8_t *)pkt);
 		if (!name)
-			printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF;
+			{ printf("EMALF(%s)\n", __FUNCTION__);return KNOT_EMALF; }
 	}
 	return count;
 }
