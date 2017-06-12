@@ -517,6 +517,9 @@ int zone_master_try(conf_t *conf, zone_t *zone, zone_master_cb callback,
 		int ret = callback(conf, zone, &preferred, callback_data);
 		if (ret == KNOT_EOK) {
 			return ret;
+		} else {
+			log_zone_warning(zone->name, "%s, preferred remote failed (%s)",
+					 err_str, knot_strerror((ret)));
 		}
 	}
 
@@ -542,6 +545,10 @@ int zone_master_try(conf_t *conf, zone_t *zone, zone_master_cb callback,
 			if (ret == KNOT_EOK) {
 				success = true;
 				break;
+			} else {
+				log_zone_warning(zone->name, "%s, remote '%s' failed (%s)",
+				                 err_str, conf_str(&masters),
+				                 knot_strerror((ret)));
 			}
 		}
 
