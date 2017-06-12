@@ -18,6 +18,7 @@
 
 #include "libknot/attribute.h"
 #include "knot/query/requestor.h"
+#include "knot/common/log.h"
 #include "libknot/errcode.h"
 #include "contrib/mempattern.h"
 #include "contrib/net.h"
@@ -246,6 +247,7 @@ static int request_consume(struct knot_requestor *req,
 	}
 
 	if (!is_answer_to_query(last->query, last->resp)) {
+		log_warning("!is_answer_to_query");
 		return KNOT_EMALF;
 	}
 

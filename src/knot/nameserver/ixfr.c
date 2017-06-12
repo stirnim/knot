@@ -201,6 +201,7 @@ static int ixfr_answer_init(knotd_qdata_t *qdata)
 	/* Check IXFR query validity. */
 	if (ixfr_query_check(qdata) == KNOT_STATE_FAIL) {
 		if (qdata->rcode == KNOT_RCODE_FORMERR) {
+			log_error("ixfr_query_check");
 			return KNOT_EMALF;
 		} else {
 			return KNOT_EDENIED;

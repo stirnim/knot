@@ -458,6 +458,7 @@ static int ixfr_solve_start(const knot_rrset_t *rr, struct refresh_data *data)
 {
 	assert(data->ixfr.final_soa == NULL);
 	if (rr->type != KNOT_RRTYPE_SOA) {
+		log_error("ixfr_solve_start");
 		return KNOT_EMALF;
 	}
 
@@ -477,6 +478,7 @@ static int ixfr_solve_start(const knot_rrset_t *rr, struct refresh_data *data)
 static int ixfr_solve_soa_del(const knot_rrset_t *rr, struct refresh_data *data)
 {
 	if (rr->type != KNOT_RRTYPE_SOA) {
+		log_error("ixfr_solve_soa_del");
 		return KNOT_EMALF;
 	}
 
@@ -503,6 +505,7 @@ static int ixfr_solve_soa_del(const knot_rrset_t *rr, struct refresh_data *data)
 static int ixfr_solve_soa_add(const knot_rrset_t *rr, changeset_t *change, knot_mm_t *mm)
 {
 	if (rr->type != KNOT_RRTYPE_SOA) {
+		log_error("ixfr_solve_soa_add");
 		return KNOT_EMALF;
 	}
 

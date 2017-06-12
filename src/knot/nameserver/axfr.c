@@ -123,6 +123,7 @@ static int axfr_query_init(knotd_qdata_t *qdata)
 	/* Check AXFR query validity. */
 	if (axfr_query_check(qdata) == KNOT_STATE_FAIL) {
 		if (qdata->rcode == KNOT_RCODE_FORMERR) {
+			log_error("axfr_query_check");
 			return KNOT_EMALF;
 		} else {
 			return KNOT_EDENIED;

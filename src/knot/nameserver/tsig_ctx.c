@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "knot/nameserver/tsig_ctx.h"
+#include "knot/common/log.h"
 #include "libknot/libknot.h"
 
 /*!
@@ -91,6 +92,7 @@ static int update_ctx_after_verify(tsig_ctx_t *ctx, knot_rrset_t *tsig_rr)
 	assert(tsig_rr);
 
 	if (ctx->digest_size != knot_tsig_rdata_mac_length(tsig_rr)) {
+		log_warning("!digest_size");
 		return KNOT_EMALF;
 	}
 
