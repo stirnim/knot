@@ -9,33 +9,8 @@ stages:
   - test
   - deploy
 
-.freebsd_i386: &freebsd_i386
-  tags:
-    - freebsd
-    - i386
-  only:
-    - master
-    - triggers
-    - tags
-
-.freebsd_amd64: &freebsd_amd64
-  tags:
-    - freebsd
-    - amd64
-  only:
-    - master
-    - triggers
-    - tags
-
 .debian_stretch: &debian_stretch
   image: cznic/debian:stretch-knot-latest
-  tags:
-    - docker
-    - linux
-    - amd64
-
-.ubuntu_xenial: &ubuntu_xenial
-  image: cznic/ubuntu:16.04-knot
   tags:
     - docker
     - linux
@@ -50,86 +25,10 @@ stages:
     untracked: true
     expire_in: '1 hour'
 
-.build: &build_job
-  stage: build
-  script:
-    - make -k all
-  artifacts:
-    untracked: true
-    expire_in: '1 hour'
-
-.test: &test_job
-  stage: test
-  script:
-    - make -k check
-
-
-configure:ubuntu:amd64:
-  <<: *ubuntu_xenial
-  <<: *configure_job
-
-build:ubuntu:amd64:
-  <<: *ubuntu_xenial
-  <<: *build_job
-  dependencies:
-    - configure:ubuntu:amd64
-
-test:ubuntu:amd64:
-  <<: *ubuntu_xenial
-  <<: *test_job
-  dependencies:
-    - build:ubuntu:amd64
-
 
 configure:debian:stretch:amd64:
   <<: *debian_stretch
   <<: *configure_job
-
-build:debian:stretch:amd64:
-  <<: *debian_stretch
-  <<: *build_job
-  dependencies:
-    - configure:debian:stretch:amd64
-
-test:debian:stretch:amd64:
-  <<: *debian_stretch
-  <<: *test_job
-  dependencies:
-    - build:debian:stretch:amd64
-
-
-configure:freebsd:i386:
-  <<: *freebsd_i386
-  <<: *configure_job
-
-build:freebsd:i386:
-  <<: *freebsd_i386
-  <<: *build_job
-  dependencies:
-    - configure:freebsd:i386
-
-test:freebsd:i386:
-  <<: *freebsd_i386
-  <<: *test_job
-  dependencies:
-    - build:freebsd:i386
-
-
-configure:freebsd:amd64:
-  <<: *freebsd_amd64
-  <<: *configure_job
-
-build:freebsd:amd64:
-  <<: *freebsd_amd64
-  <<: *build_job
-  dependencies:
-    - configure:freebsd:amd64
-
-test:freebsd:amd64:
-  <<: *freebsd_amd64
-  <<: *test_job
-  dependencies:
-    - build:freebsd:amd64
 
 build:documentation:
   <<: *debian_stretch
@@ -139,6 +38,7 @@ build:documentation:
   only:
     - tags
     - triggers
+    - doc-test
   script:
     - make -C doc html singlehtml pdf
   artifacts:
@@ -156,6 +56,7 @@ deploy:documentation:
   only:
     - tags
     - triggers
+    - doc-test
   script:
     - "curl --http1.1 --request POST --form token=$WEBSITE_TOKEN --form ref=master
       --form \"variables[RELEASE_CI_BUILD_REF_NAME]=$CI_COMMIT_REF_NAME\"
