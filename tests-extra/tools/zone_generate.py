@@ -28,6 +28,7 @@ import dns
 import dns.rdataclass
 import dns.rdatatype
 import dns.rdata
+from dns.rdatatype import *
 
 # Word databases
 ORIGIN = '' # Zone origin (default=com)
@@ -443,6 +444,8 @@ def main(args):
     global TTL
     global RORIGIN
     global RPREFIX
+    global CNAME_EXIST
+    global NAME_EXIST
     UPDATE = None
     sign = 0
     nsec3 = random.choice([0, 1])
@@ -527,6 +530,13 @@ def main(args):
         for idx, val in enumerate(RRTYPES):
             if val[0] == 'CNAME':
                 RRTYPES[idx][2] = 0
+
+        zone = dns.zone.from_file(UPDATE, ORIGIN)
+        for name, node in zone.nodes.items():
+            rdatasets = node.rdatasets
+            for rdataset in rdatasets:
+                if rdataset.rdtype == CNAME:
+                    CNAME_EXIST.add(name.to_text(omit_final_dot=True).lower())
 
     outf = open(in_fname, "a")
 
