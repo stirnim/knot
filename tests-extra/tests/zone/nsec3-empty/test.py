@@ -7,6 +7,7 @@ from dnstest.test import Test
 t = Test()
 
 master = t.server("knot")
+master.semantic_checks = "off"
 
 # Zone setup
 zone = t.zone("example.com.", storage=".")

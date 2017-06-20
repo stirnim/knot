@@ -135,6 +135,7 @@ class Server(object):
         self.kasp_db_size = 10 * 1024 * 1024
         self.zone_size_limit = None
 
+        self.semantic_checks = None
         self.inquirer = None
 
         self.modules = []
@@ -1152,7 +1153,10 @@ class Knot(Server):
         s.item_str("max-kasp-db-size", self.kasp_db_size)
         s.item_str("max-journal-db-size", self.journal_db_size)
         s.item_str("max-timer-db-size", self.timer_db_size)
-        s.item_str("semantic-checks", "on")
+        if self.semantic_checks:
+            s.item_str("semantic-checks", self.semantic_checks)
+        else:
+            s.item_str("semantic-checks", "on")
         if self.disable_any:
             s.item_str("disable-any", "on")
         if len(self.modules) > 0:

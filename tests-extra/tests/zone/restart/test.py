@@ -34,6 +34,7 @@ t.link(zone, master, slave, ixfr=True, ddns=True)
 master.dnssec(zone).enable = True
 master.dnssec(zone).nsec3 = True
 
+slave.semantic_checks = "off"
 t.start()
 
 # Load zones - master should sign
