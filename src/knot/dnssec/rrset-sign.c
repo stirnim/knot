@@ -187,21 +187,7 @@ static int sign_ctx_add_records(dnssec_sign_ctx_t *ctx, const knot_rrset_t *cove
 	return result;
 }
 
-/*!
- * \brief Add all data covered by signature into signing context.
- *
- * RFC 4034: The signature covers RRSIG RDATA field (excluding the signature)
- * and all matching RR records, which are ordered canonically.
- *
- * Requires all DNAMEs in canonical form and all RRs ordered canonically.
- *
- * \param ctx          Signing context.
- * \param rrsig_rdata  RRSIG RDATA with populated fields except signature.
- * \param covered      Covered RRs.
- *
- * \return Error code, KNOT_EOK if successful.
- */
-static int sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
+int sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
                              const uint8_t *rrsig_rdata,
                              const knot_rrset_t *covered)
 {

@@ -53,6 +53,23 @@ int knot_sign_rrset(knot_rrset_t *rrsigs,
                     dnssec_sign_ctx_t *sign_ctx,
                     const kdnssec_ctx_t *dnssec_ctx,
                     knot_mm_t *mm);
+/*!
+ * \brief Add all data covered by signature into signing context.
+ *
+ * RFC 4034: The signature covers RRSIG RDATA field (excluding the signature)
+ * and all matching RR records, which are ordered canonically.
+ *
+ * Requires all DNAMEs in canonical form and all RRs ordered canonically.
+ *
+ * \param ctx          Signing context.
+ * \param rrsig_rdata  RRSIG RDATA with populated fields except signature.
+ * \param covered      Covered RRs.
+ *
+ * \return Error code, KNOT_EOK if successful.
+ */
+int sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
+                             const uint8_t *rrsig_rdata,
+                             const knot_rrset_t *covered);
 
 /*!
  * \brief Creates new RRS using \a rrsig_rrs as a source. Only those RRs that

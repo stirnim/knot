@@ -22,6 +22,8 @@
 #include <arpa/inet.h>
 
 #include "dnssec/keytag.h"
+#include "dnssec/nsec.h"
+#include "dnssec/error.h"
 #include "knot/zone/semantic-check.h"
 #include "knot/common/log.h"
 #include "knot/dnssec/rrset-sign.h"
@@ -31,6 +33,8 @@
 #include "contrib/mempattern.h"
 #include "contrib/wire.h"
 #include "knot/dnssec/nsec-chain.h"
+#include "knot/dnssec/zone-keys.h"
+#include "knot/dnssec/rrset-sign.h"
 
 static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 	[-ZC_ERR_UNKNOWN] =
@@ -47,6 +51,8 @@ static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 	"wrong Original TTL in RRSIG",
 	[-ZC_ERR_RRSIG_RDATA_EXPIRATION] =
 	"expired RRSIG",
+	[-ZC_ERR_RRSIG_RDATA_INCEPTION] =
+	"RRSIG inception in the future",
 	[-ZC_ERR_RRSIG_RDATA_LABELS] =
 	"wrong Labels in RRSIG",
 	[-ZC_ERR_RRSIG_RDATA_DNSKEY_OWNER] =
@@ -57,6 +63,10 @@ static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 	"signed RRSIG",
 	[-ZC_ERR_RRSIG_TTL] =
 	"wrong RRSIG TTL",
+	[-ZC_ERR_RRSIG_UNVERIFIABLE] =
+	"unverifiable signature",
+	[-ZC_ERR_RRSIG_OBSOLETE] =
+	"obsolete signature - missing signed RRset",
 
 	[-ZC_ERR_NO_NSEC] =
 	"missing NSEC",
@@ -147,29 +157,112 @@ struct check_function {
 
 /* List of function callbacks for defined check_level */
 static const struct check_function CHECK_FUNCTIONS[] = {
-	{check_cname_multiple, MANDATORY},
-	{check_dname,          MANDATORY},
-	{check_delegation,     OPTIONAL},
-	{check_rrsig,          NSEC | NSEC3},
-	{check_signed_rrsig,   NSEC | NSEC3},
-	{check_nsec,           NSEC},
-	{check_nsec3,          NSEC3},
-	{check_nsec3_presence, NSEC3},
-	{check_nsec3_opt_out,  NSEC3},
-	{check_nsec_bitmap,    NSEC | NSEC3},
+	{check_cname_multiple,    MANDATORY},
+	{check_dname,             MANDATORY},
+	{check_ds,		  MANDATORY},
+	{check_delegation,        OPTIONAL},
+	{check_submission_records,OPTIONAL},
+	{check_rrsig,             NSEC | NSEC3},
+	{check_signed_rrsig,      NSEC | NSEC3},
+	{check_nsec,              NSEC},
+	{check_nsec3,             NSEC3},
+	{check_nsec3_presence,    NSEC3},
+	{check_nsec3_opt_out,     NSEC3},
+	{check_nsec_bitmap,       NSEC | NSEC3},
 };
 
 static const int CHECK_FUNCTIONS_LEN = sizeof(CHECK_FUNCTIONS)
                                      / sizeof(struct check_function);
 
+static int dnssec_key_from_rdata(dnssec_key_t **key, const knot_dname_t *kown,
+				 const uint8_t *rdata, size_t rdlen)
+{
+	if (!key || !rdata || rdlen == 0) {
+		return KNOT_EINVAL;
+	}
+
+	dnssec_key_t *new_key = NULL;
+	const dnssec_binary_t binary_key = {
+		.size = rdlen,
+		.data = (uint8_t *)rdata
+	};
+
+	int ret = dnssec_key_new(&new_key);
+	if (ret != DNSSEC_EOK) {
+		return KNOT_ENOMEM;
+	}
+	ret = dnssec_key_set_rdata(new_key, &binary_key);
+	if (ret != DNSSEC_EOK) {
+		dnssec_key_free(new_key);
+		return KNOT_ENOMEM;
+	}
+	if (kown) {
+		ret = dnssec_key_set_dname(new_key, kown);
+		if (ret != DNSSEC_EOK) {
+			dnssec_key_free(new_key);
+			return KNOT_ENOMEM;
+		}
+	}
+
+	*key = new_key;
+	return KNOT_EOK;
+}
+
+static int check_signature(const knot_rdataset_t *rrsigs, size_t pos,
+                       const dnssec_key_t *key, const knot_rrset_t *covered,
+                       int trim_labels)
+{
+	if (!rrsigs || !key || !dnssec_key_can_verify(key)) {
+		return KNOT_EINVAL;
+	}
+
+	int ret = KNOT_EOK;
+	dnssec_sign_ctx_t *sign_ctx = NULL;
+	dnssec_binary_t signature = {0, };
+
+	knot_rrsig_signature(rrsigs, pos, &signature.data, &signature.size);
+	if (!signature.data || !signature.size) {
+		ret = KNOT_EINVAL;
+		goto fail;
+	}
+
+	if (dnssec_sign_new(&sign_ctx, key) != KNOT_EOK) {
+		ret = KNOT_ENOMEM;
+		goto fail;
+	}
+
+	const knot_rdata_t *rr_data = knot_rdataset_at(rrsigs, pos);
+	uint8_t *rdata = knot_rdata_data(rr_data);
+
+	if (sign_ctx_add_data(sign_ctx, rdata, covered) != KNOT_EOK) {
+		ret = KNOT_ENOMEM;
+		goto fail;
+	}
+
+	if (dnssec_sign_verify(sign_ctx, &signature) != KNOT_EOK) {
+		ret = KNOT_EINVAL;
+		goto fail;
+	}
+
+fail:
+	dnssec_sign_free(sign_ctx);
+	return ret;
+}
+
 /*!
  * \brief Semantic check - RRSIG rdata.
  *
- * \param rdata_rrsig RRSIG rdata to be checked.
- * \param rrset RRSet containing the rdata.
+ * \param handler    Pointer on function to be called in case of negative check.
+ * \param zone       The zone the rrset is in.
+ * \param node       The node in the zone contents.
+ * \param rrsig      RRSIG rdataset.
+ * \param rr_pos     Position of the RRSIG rdata in question (in the rdataset).
+ * \param rrset      RRSet signed by the RRSIG.
+ * \param context    The time stamp we check the rrsig validity according to.
+ * \param level      Level of the check.
+ * \param verified   Out: the RRSIG has been verified to be signed by existing DNSKEY.
  *
- * \retval KNOT_EOK if rdata are OK.
- *
+ * \retval KNOT_EOK on success.
  * \return Appropriate error code if error was found.
  */
 static int check_rrsig_rdata(err_handler_t *handler,
@@ -177,7 +270,10 @@ static int check_rrsig_rdata(err_handler_t *handler,
                              const zone_node_t *node,
                              const knot_rdataset_t *rrsig,
                              size_t rr_pos,
-                             const knot_rrset_t *rrset, time_t context)
+                             const knot_rrset_t *rrset,
+                             time_t context,
+                             enum check_levels level,
+                             bool *verified)
 {
 	/* Prepare additional info string. */
 	char info_str[50] = { '\0' };
@@ -248,8 +344,17 @@ static int check_rrsig_rdata(err_handler_t *handler,
 		}
 	}
 
-	/* Check signer name. */
+	/* Check inception */
+	if (knot_rrsig_sig_inception(rrsig, rr_pos) > context) {
+		ret = handler->cb(handler, zone, node,
+				  ZC_ERR_RRSIG_RDATA_INCEPTION,
+				  info_str, ZC_SEVERITY_ERROR);
+		if (ret != KNOT_EOK) {
+			return ret;
+		}
+	}
 
+	/* Check signer name. */
 	const knot_dname_t *signer = knot_rrsig_signer_name(rrsig, rr_pos);
 	if (!knot_dname_is_equal(signer, zone->apex->owner)) {
 		ret = handler->cb(handler, zone, node,
@@ -260,7 +365,37 @@ static int check_rrsig_rdata(err_handler_t *handler,
 		}
 	}
 
-	return ret;
+	/* Verify with public key - only one RRSIG of covered record needed */
+	if (level & OPTIONAL && !*verified) {
+		const knot_rdataset_t *dnskeys = node_rdataset(zone->apex, KNOT_RRTYPE_DNSKEY);
+		if (dnskeys == NULL) {
+			return KNOT_EOK;
+		}
+
+		for (int i = 0; i < dnskeys->rr_count; i++) {
+			uint16_t flags = knot_dnskey_flags(dnskeys, i);
+			uint8_t proto = knot_dnskey_proto(dnskeys, i);
+			/* RFC 4034 2.1.1 & 2.1.2 */
+			if (flags & DNSKEY_FLAGS_ZSK && proto == 3) {
+				knot_rdata_t *dnskey = knot_rdataset_at(dnskeys, i);
+				dnssec_key_t *key;
+
+				ret = dnssec_key_from_rdata(&key, zone->apex->owner,
+							    knot_rdata_data(dnskey),
+							    knot_rdata_rdlen(dnskey));
+				if (ret == KNOT_EOK) {
+					ret = check_signature(rrsig, rr_pos, key, rrset, 0);
+					dnssec_key_free(key);
+					if (ret == KNOT_EOK) {
+						*verified = true;
+						return ret;
+					}
+				}
+			}
+		}
+	}
+
+	return KNOT_EOK;
 }
 
 static int check_signed_rrsig(const zone_node_t *node, semchecks_data_t *data)
@@ -268,24 +403,29 @@ static int check_signed_rrsig(const zone_node_t *node, semchecks_data_t *data)
 	/* signed rrsig - nonsense */
 	if (node_rrtype_is_signed(node, KNOT_RRTYPE_RRSIG)) {
 		return data->handler->cb(data->handler, data->zone, node,
-		                         ZC_ERR_RRSIG_SIGNED, NULL);
+					 ZC_ERR_RRSIG_SIGNED, NULL, ZC_SEVERITY_ERROR);
 	}
 	return KNOT_EOK;
 }
 /*!
  * \brief Semantic check - RRSet's RRSIG.
  *
- * \param rrset RRSet containing RRSIG.
- * \param nsec3 NSEC3 active.
+ * \param handler    Pointer on function to be called in case of negative check.
+ * \param zone       The zone the rrset is in.
+ * \param node       The node in the zone contents.
+ * \param rrset      RRSet signed by the RRSIG.
+ * \param context    The time stamp we check the rrsig validity according to.
+ * \param level      Level of the check.
  *
  * \retval KNOT_EOK on success.
- *
  * \return Appropriate error code if error was found.
  */
 static int check_rrsig_in_rrset(err_handler_t *handler,
                                 const zone_contents_t *zone,
                                 const zone_node_t *node,
-                                const knot_rrset_t *rrset, time_t context)
+                                const knot_rrset_t *rrset,
+                                time_t context,
+                                enum check_levels level)
 {
 	if (handler == NULL || node == NULL || rrset == NULL) {
 		return KNOT_EINVAL;
@@ -305,11 +445,11 @@ static int check_rrsig_in_rrset(err_handler_t *handler,
 	                           node_rdataset(node, KNOT_RRTYPE_RRSIG),
 	                           &rrsigs, NULL);
 	if (ret != KNOT_EOK && ret != KNOT_ENOENT) {
-		return ret;
+		goto finish_rrsig_in_rrset;
 	}
 
 	if (ret == KNOT_ENOENT) {
-		return handler->cb(handler, zone, node,
+		ret = handler->cb(handler, zone, node,
 		                   ZC_ERR_RRSIG_NO_RRSIG,
 				   info_str, ZC_SEVERITY_ERROR);
 		goto finish_rrsig_in_rrset;
@@ -321,10 +461,18 @@ static int check_rrsig_in_rrset(err_handler_t *handler,
 		goto finish_rrsig_in_rrset;
 	}
 
+	bool verified = false;
 	for (uint16_t i = 0; ret == KNOT_EOK && i < (&rrsigs)->rr_count; ++i) {
-		ret = check_rrsig_rdata(handler, zone, node, &rrsigs, i, rrset, context);
+		ret = check_rrsig_rdata(handler, zone, node, &rrsigs, i, rrset,
+		    context, level, &verified);
+	}
+	/* Only one rrsig of covered record needs to be verified by DNSKEY */
+	if (!verified) {
+		ret = handler->cb(handler, zone, node, ZC_ERR_RRSIG_UNVERIFIABLE,
+				   info_str, ZC_SEVERITY_ERROR);
 	}
 
+finish_rrsig_in_rrset:
 	knot_rdataset_clear(&rrsigs, NULL);
 	return ret;
 }
@@ -881,6 +1029,14 @@ static int do_checks_in_tree(zone_node_t *node, void *data)
 
 	int ret = KNOT_EOK;
 
+	if (node->rrset_count == 1) {
+		knot_rrset_t rrset = node_rrset_at(node, 0);
+		if (rrset.type == KNOT_RRTYPE_RRSIG) {
+			return s_data->handler->cb(s_data->handler, s_data->zone, node,
+						 ZC_ERR_RRSIG_OBSOLETE, NULL, ZC_SEVERITY_WARNING);
+		}
+	}
+
 	for (int i = 0; ret == KNOT_EOK && i < CHECK_FUNCTIONS_LEN; ++i) {
 		if (CHECK_FUNCTIONS[i].level & s_data->level) {
 			ret = CHECK_FUNCTIONS[i].function(node, s_data);
@@ -888,6 +1044,73 @@ static int do_checks_in_tree(zone_node_t *node, void *data)
 	}
 
 
+	return ret;
+}
+#define NSEC3_PARAM_OPTOUT 1
+static int check_nsec3param(knot_rdataset_t *nsec3param, zone_contents_t *zone,
+			    err_handler_t *handler, semchecks_data_t *data)
+{
+	int ret = KNOT_EOK;
+	if (nsec3param != NULL) {
+		data->level |= NSEC3;
+		uint8_t param = knot_nsec3param_flags(nsec3param, 0);
+		if ((param & ~NSEC3_PARAM_OPTOUT) != 0) {
+			ret = handler->cb(handler, zone, zone->apex,
+					  ZC_ERR_NSEC3_PARAM_VALUE,
+					  "NSEC3PARAM flags", ZC_SEVERITY_ERROR);
+			if (ret != KNOT_EOK) {
+				return ret;
+			}
+		}
+
+		param = knot_nsec3param_algorithm(nsec3param, 0);
+		if (param != DNSSEC_NSEC3_ALGORITHM_SHA1) {
+			ret = handler->cb(handler, zone, zone->apex,
+					  ZC_ERR_NSEC3_PARAM_VALUE,
+					  "NSEC3PARAM algorthm", ZC_SEVERITY_ERROR);
+			if (ret != KNOT_EOK) {
+				return ret;
+			}
+		}
+	}
+	return KNOT_EOK;
+}
+
+static int check_dnskey(zone_contents_t *zone, err_handler_t *handler) {
+	const knot_rdataset_t *dnskeys = node_rdataset(zone->apex,
+						       KNOT_RRTYPE_DNSKEY);
+	int ret = KNOT_EOK;
+	if (dnskeys != NULL) {
+		for (int i = 0; i < dnskeys->rr_count; i++) {
+			knot_rdata_t *dnskey = knot_rdataset_at(dnskeys, i);
+			dnssec_key_t *key;
+			ret = dnssec_key_from_rdata(&key, zone->apex->owner,
+						    knot_rdata_data(dnskey),
+						    knot_rdata_rdlen(dnskey));
+			if (ret == KNOT_EOK) {
+				dnssec_key_free(key);
+			}
+			//  RFC 4034: 2.1.2. The Protocol Field MUST have value 3
+			if (knot_dnskey_proto(dnskeys, i) == 3 && ret == KNOT_EOK) {
+				continue;
+			}
+
+			char buff[10];
+			int r = snprintf(buff, 10, "%d.", i + 1);
+			if (r < 0 || r >= 10) {
+				return KNOT_ENOMEM;
+			}
+
+			ret = handler->cb(handler, zone, zone->apex,
+					  ZC_ERR_INVALID_KEY, buff, ZC_SEVERITY_ERROR);
+			if (ret != KNOT_EOK) {
+				return ret;
+			}
+		}
+	} else {
+		ret = handler->cb(handler, zone, zone->apex,
+			  ZC_ERR_INVALID_KEY, "no key found", ZC_SEVERITY_ERROR);
+	}
 	return ret;
 }
 
@@ -906,19 +1129,29 @@ int zone_do_sem_checks(zone_contents_t *zone, bool optional,
 		.level = MANDATORY,
 		.context_time = context,
 		};
-
+	int ret;
 	if (optional) {
 		data.level |= OPTIONAL;
 		if (zone_contents_is_signed(zone)) {
-			if (node_rrtype_exists(zone->apex, KNOT_RRTYPE_NSEC3PARAM)) {
+			knot_rdataset_t *nsec3param = node_rdataset(zone->apex,
+								    KNOT_RRTYPE_NSEC3PARAM);
+			if (nsec3param != NULL) {
 				data.level |= NSEC3;
+				ret = check_nsec3param(nsec3param, zone, handler, &data);
+				if (ret != KNOT_EOK) {
+					return ret;
+				}
 			} else {
 				data.level |= NSEC;
+			}
+			ret = check_dnskey(zone, handler);
+			if (ret != KNOT_EOK) {
+				return ret;
 			}
 		}
 	}
 
-	int ret = zone_contents_apply(zone, do_checks_in_tree, &data);
+	ret = zone_contents_apply(zone, do_checks_in_tree, &data);
 	if (ret != KNOT_EOK) {
 		return ret;
 	}
