@@ -254,7 +254,7 @@ zone_contents_t *zonefile_load(zloader_t *loader)
 	}
 
 	if (!node_rrtype_exists(loader->creator->z->apex, KNOT_RRTYPE_SOA)) {
-		loader->err_handler->cb(loader->err_handler, zc->z, NULL, ZC_ERR_MISSING_SOA, NULL);
+		loader->err_handler->cb(loader->err_handler, zc->z, NULL, ZC_ERR_MISSING_SOA, NULL, ZC_SEVERITY_ERROR);
 		goto fail;
 	}
 
@@ -351,12 +351,13 @@ void zonefile_close(zloader_t *loader)
 }
 
 int err_handler_logger(err_handler_t *handler, const zone_contents_t *zone,
-                        const zone_node_t *node, int error, const char *data)
+			const zone_node_t *node, int error, const char *data, int severity)
 {
 	assert(handler != NULL);
 	assert(zone != NULL);
 	err_handler_logger_t *h = (err_handler_logger_t *) handler;
 
+	const char *sevstr = severity_to_str(severity);
 	const char *errmsg = semantic_check_error_msg(error);
 
 	if (node == NULL) { // zone error
@@ -366,12 +367,53 @@ int err_handler_logger(err_handler_t *handler, const zone_contents_t *zone,
 		char buff[KNOT_DNAME_TXT_MAXLEN + 1];
 		char *name = knot_dname_to_str(buff, node->owner, sizeof(buff));
 		log_zone_warning(zone->apex->owner,
-		                 "semantic check, record '%s', %s%s%s",
-		                 name ? name : "", errmsg,
+				 "semantic check, %s: record '%s', %s%s%s",
+				 sevstr,
+				 name ? name : "", errmsg,
 		                 data ? ", " : "", data ? data : "");
 	}
 
-	h->error_count++;
+	if (severity == ZC_SEVERITY_ERROR) {
+		h->error_count++;
+	} else if (severity == ZC_SEVERITY_WARNING) {
+		h->warn_count++;
+	}
+
+	return KNOT_EOK;
+}
+
+int err_handler_logger_NSEC3(err_handler_t *handler, char *hash, const zone_contents_t *zone,
+			const zone_node_t *node, int error, const char *data, int severity)
+{
+	assert(handler != NULL);
+	assert(zone != NULL);
+	err_handler_logger_t *h = (err_handler_logger_t *)handler;
+	const char *sevstr = severity_to_str(severity);
+	const char *errmsg = semantic_check_error_msg(error);
+
+	const char *type = node ? "record" : "zone";
+
+	if (node == NULL) {
+		if (hash == NULL) {
+			log_zone_warning(zone->apex->owner, "semantic check, %s: %s: %s%s%s%s",
+					 sevstr, type, errmsg, (data ? " (" : ""), (data ? data : ""), (data ? ")" : ""));
+		} else {
+			log_zone_warning(zone->apex->owner, "semantic check, %s: %s '%s': %s%s%s%s", sevstr, type, hash, errmsg, (data ? " (" : ""), (data ? data : ""), (data ? ")" : ""));
+		}
+	} else {
+		char *name = NULL;
+		name = knot_dname_to_str_alloc(node->owner);
+		log_zone_warning(zone->apex->owner, "semantic check, %s: %s '%s' '%s': %s%s%s%s", sevstr, type, name ? name : "?", hash ? hash : "?",
+		errmsg, (data ? " (" : ""), (data ? data : ""), (data ? ")" : ""));
+		free(name);
+	}
+
+	if (severity == ZC_SEVERITY_ERROR) {
+		h->error_count++;
+	} else if (severity == ZC_SEVERITY_WARNING) {
+		h->warn_count++;
+	}
+
 	return KNOT_EOK;
 }
 

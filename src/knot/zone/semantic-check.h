@@ -67,6 +67,8 @@ enum zonechecks_errors {
 	ZC_ERR_NSEC3_RDATA_CHAIN,
 	ZC_ERR_NSEC3_EXTRA_RECORD,
 	ZC_ERR_NSEC3_RDATA_BITMAP,
+	ZC_ERR_NSEC3_PARAM,
+	ZC_ERR_NSEC3_PARAM_VALUE,
 
 	ZC_ERR_NSEC3_GENERAL_ERROR, /* NSEC3 error delimiter. */
 
@@ -84,6 +86,20 @@ enum zonechecks_errors {
 	ZC_ERR_LAST,
 };
 
+enum zc_severity {
+	ZC_SEVERITY_ERROR,
+	ZC_SEVERITY_WARNING,
+};
+
+static inline char *severity_to_str(int severity)
+{
+	switch (severity) {
+	case ZC_SEVERITY_ERROR:	   return "error";
+	case ZC_SEVERITY_WARNING:  return "warning";
+	default:                   return NULL;
+	}
+}
+
 const char *semantic_check_error_msg(int ecode);
 
 /*!
@@ -100,10 +116,14 @@ typedef struct err_handler err_handler_t;
  * Return other KNOT_E* to stop semantic check with error.
  */
 typedef int (*error_cb) (err_handler_t *ctx, const zone_contents_t *zone,
-                         const zone_node_t *node, int error, const char *data);
+                         const zone_node_t *node, int error, const char *data, int severity);
+
+typedef int (*error_NSEC3) (err_handler_t *ctx, char *hash, const zone_contents_t *zone,
+                         const zone_node_t *node, int error, const char *data, int severity);
 
 struct err_handler {
 	error_cb cb;
+	error_NSEC3 NSEC3;
 };
 
 

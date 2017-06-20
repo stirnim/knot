@@ -17,6 +17,16 @@
 #pragma once
 
 #include "libknot/libknot.h"
+#include "knot/zone/zonefile.h"
+
+typedef struct {
+	err_handler_t _cb;
+	FILE *outfile;
+	unsigned errors[(-ZC_ERR_UNKNOWN) + 1]; /*!< Counting errors by type */
+	unsigned error_count; /*!< Total error count */
+	unsigned warn[(-ZC_ERR_UNKNOWN) + 1]; /*!< Counting warnings by type */
+	unsigned warn_count; /*!< Total warning count */
+} err_handler_stats_t;
 
 int zone_check(const char *zone_file, const knot_dname_t *zone_name,
                FILE *outfile, time_t time);

@@ -40,6 +40,7 @@ int zone_load_contents(conf_t *conf, const knot_dname_t *zone_name,
 	err_handler_logger_t handler;
 	memset(&handler, 0, sizeof(handler));
 	handler._cb.cb = err_handler_logger;
+	handler._cb.NSEC3 = err_handler_logger_NSEC3;
 
 	zl.err_handler = (err_handler_t *) &handler;
 	free(zonefile);

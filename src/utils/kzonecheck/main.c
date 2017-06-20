@@ -109,7 +109,6 @@ int main(int argc, char *argv[])
 					    context_time - process_time_shift(optarg+1);
 			} else {
 				struct tm tm = { 0 };
-				printf("opt %s\n", optarg);
 				if (strptime(optarg, "%Y-%m-%d", &tm) == NULL) {
 					if (strptime(optarg, "%s", &tm) == NULL) {
 						fprintf(outfile, "Invalid time.\n");
