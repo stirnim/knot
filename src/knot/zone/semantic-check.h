@@ -86,6 +86,12 @@ enum zonechecks_errors {
 
 	ZC_ERR_GLUE_RECORD,
 
+	ZC_ERR_BAD_DS,
+
+	ZC_ERR_INVALID_KEY,
+
+	ZC_ERR_CDS_CDNSKEY,
+
 	ZC_ERR_LAST,
 };
 

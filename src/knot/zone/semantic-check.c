@@ -109,6 +109,15 @@ static const char *zonechecks_error_messages[(-ZC_ERR_UNKNOWN) + 1] = {
 
 	[-ZC_ERR_GLUE_RECORD] =
 	"missing glue record",
+
+	[-ZC_ERR_BAD_DS] =
+	"bad parameter value in DS",
+
+	[-ZC_ERR_CDS_CDNSKEY] =
+	"invalid CDS and CDNSKEY pair",
+
+	[-ZC_ERR_INVALID_KEY] =
+	"invalid dnssec key",
 };
 
 
@@ -149,6 +158,8 @@ static int check_rrsig(const zone_node_t *node, semchecks_data_t *data);
 static int check_signed_rrsig(const zone_node_t *node, semchecks_data_t *data);
 static int check_nsec_bitmap(const zone_node_t *node, semchecks_data_t *data);
 static int check_nsec3_presence(const zone_node_t *node, semchecks_data_t *data);
+static int check_ds(const zone_node_t *node, semchecks_data_t *data);
+static int check_submission_records(const zone_node_t *node, semchecks_data_t *data);
 
 struct check_function {
 	int (*function)(const zone_node_t *, semchecks_data_t *);
@@ -520,9 +531,144 @@ static int check_delegation(const zone_node_t *node, semchecks_data_t *data)
 		if (!node_rrtype_exists(glue_node, KNOT_RRTYPE_A) &&
 		    !node_rrtype_exists(glue_node, KNOT_RRTYPE_AAAA)) {
 			ret = data->handler->cb(data->handler, data->zone,
-			                        node, ZC_ERR_GLUE_RECORD, NULL);
+						node, ZC_ERR_GLUE_RECORD, NULL, ZC_SEVERITY_ERROR);
 		}
 	}
+	return ret;
+}
+
+/*!
+ * \brief check_submission_records Check CDS and CDNSKEY
+ */
+static int check_submission_records(const zone_node_t *node, semchecks_data_t *data)
+{
+	int ret;
+	const knot_rdataset_t *cdss = node_rdataset(node, KNOT_RRTYPE_CDS);
+	const knot_rdataset_t *cdnskeys = node_rdataset(node, KNOT_RRTYPE_CDNSKEY);
+	if (cdss == NULL && cdnskeys == NULL) {
+		return KNOT_EOK;
+	} else if (cdss == NULL || cdnskeys == NULL) {
+		return data->handler->cb(data->handler, data->zone,
+					 node, ZC_ERR_CDS_CDNSKEY,
+					 NULL, ZC_SEVERITY_ERROR);
+	}
+
+	if (cdss->rr_count != 1 || cdnskeys->rr_count != 1) {
+		ret = data->handler->cb(data->handler, data->zone,
+					 node, ZC_ERR_CDS_CDNSKEY,
+					 "more than one pair", ZC_SEVERITY_WARNING);
+		if (ret != KNOT_EOK) {
+			return ret;
+		}
+	}
+
+	knot_rdata_t *cdnskey = knot_rdataset_at(cdnskeys, 0);
+	knot_rdata_t *cds = knot_rdataset_at(cdss, 0);
+	uint8_t digest_type = knot_ds_digest_type(cdss, 0);
+
+	const knot_rdataset_t *dnskeys = node_rdataset(data->zone->apex, KNOT_RRTYPE_DNSKEY);
+	if (dnskeys == NULL) {
+		return data->handler->cb(data->handler, data->zone,
+					 node, ZC_ERR_CDS_CDNSKEY,
+					"no dnskeys", ZC_SEVERITY_ERROR);
+	}
+
+	for (int i = 0; i < dnskeys->rr_count; i++) {
+		knot_rdata_t *dnskey = knot_rdataset_at(dnskeys, i);
+		if (knot_rdata_cmp(dnskey, cdnskey) == 0) {
+			dnssec_key_t *key;
+			ret = dnssec_key_from_rdata(&key, data->zone->apex->owner,
+							    knot_rdata_data(dnskey),
+							    knot_rdata_rdlen(dnskey));
+			if (ret != KNOT_EOK) {
+				continue;
+			}
+
+			uint16_t flags = dnssec_key_get_flags(key);
+			dnssec_binary_t cds_calc = { 0 };
+			dnssec_binary_t cds_orig = { .size = knot_rdata_rdlen(cds),
+						     .data = knot_rdata_data(cds) };
+			ret = dnssec_key_create_ds(key, digest_type, &cds_calc);
+			if (ret != KNOT_EOK) {
+				continue;
+			}
+			ret = dnssec_binary_cmp(&cds_orig, &cds_calc);
+			dnssec_binary_free(&cds_calc);
+			dnssec_key_free(key);
+			if (ret == 0) {
+				if (!(flags & DNSKEY_FLAGS_KSK)) {
+					return data->handler->cb(data->handler,
+								 data->zone,
+								 node,
+								 ZC_ERR_CDS_CDNSKEY,
+								 "not ksk",
+								 ZC_SEVERITY_ERROR);
+				} else {
+					return KNOT_EOK;
+				}
+			} else {
+				return data->handler->cb(data->handler, data->zone,
+					node, ZC_ERR_CDS_CDNSKEY,
+					"pair does not match", ZC_SEVERITY_ERROR);
+			}
+		}
+	}
+
+	return data->handler->cb(data->handler, data->zone,
+				 node, ZC_ERR_CDS_CDNSKEY,
+				 "corresponding dnskey missing", ZC_SEVERITY_ERROR);
+}
+
+/*!
+ * \brief Semantic check - DS record.
+ *
+ * \param node Node to check
+ * \param data Semantic checks context data
+ *
+ * \retval KNOT_EOK on success.
+ * \return Appropriate error code if error was found.
+ */
+static int check_ds(const zone_node_t *node, semchecks_data_t *data)
+{
+	const knot_rdataset_t *dss = node_rdataset(node, KNOT_RRTYPE_DS);
+	if (dss == NULL) {
+	    return KNOT_EOK;
+	}
+
+	int ret = KNOT_EOK;
+	for (int i = 0; i < dss->rr_count; i++) {
+		uint16_t keytag = knot_ds_key_tag(dss, i);
+		uint8_t digest_type = knot_ds_digest_type(dss, i);
+
+		char buffer[100] = { 0 };
+
+		if (digest_type < 1 || digest_type > 4) {
+			snprintf(buffer, 100, "type - keytag %d", keytag);
+			ret = data->handler->cb(data->handler, data->zone,
+						node, ZC_ERR_BAD_DS, buffer,
+						ZC_SEVERITY_ERROR);
+			if (ret != KNOT_EOK) {
+				return ret;
+			}
+		} else {
+			uint8_t *digest;
+			uint16_t digest_size;
+
+			knot_ds_digest(dss, i, &digest, &digest_size);
+			// sizes for different digest algorithms, 0 - invalid, ...
+			const uint16_t digest_sizes [] = { 0xffff, 20, 32, 32, 48};
+
+			if (digest_sizes[digest_type] != digest_size) {
+				snprintf(buffer, 100, "hash length - keytag %d", keytag);
+				ret = data->handler->cb(data->handler, data->zone,
+						  node, ZC_ERR_BAD_DS, buffer, ZC_SEVERITY_ERROR);
+				if (ret != KNOT_EOK) {
+					return ret;
+				}
+			}
+		}
+	}
+
 	return ret;
 }
 
