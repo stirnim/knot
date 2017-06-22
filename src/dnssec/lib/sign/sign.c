@@ -1,4 +1,4 @@
-/*  Copyright (C) 2014 CZ.NIC, z.s.p.o. <knot-dns@labs.nic.cz>
+/*  Copyright (C) 2017 CZ.NIC, z.s.p.o. <knot-dns@labs.nic.cz>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -65,14 +65,9 @@ struct dnssec_sign_ctx {
 
 /* -- signature format conversions ----------------------------------------- */
 
-/*!
- * Conversion of RSA signature between X.509 and DNSSEC format is a NOOP.
- *
- * \note Described in RFC 3110.
- */
-static int rsa_copy_signature(dnssec_sign_ctx_t *ctx,
-			      const dnssec_binary_t *from,
-			      dnssec_binary_t *to)
+static int copy_signature(dnssec_sign_ctx_t *ctx,
+			  const dnssec_binary_t *from,
+			  dnssec_binary_t *to)
 {
 	assert(ctx);
 	assert(from);
@@ -81,9 +76,14 @@ static int rsa_copy_signature(dnssec_sign_ctx_t *ctx,
 	return dnssec_binary_dup(from, to);
 }
 
+/*!
+ * Conversion of RSA signature between X.509 and DNSSEC format is a NOOP.
+ *
+ * \note Described in RFC 3110.
+ */
 static const algorithm_functions_t rsa_functions = {
-	.x509_to_dnssec = rsa_copy_signature,
-	.dnssec_to_x509 = rsa_copy_signature,
+	.x509_to_dnssec = copy_signature,
+	.dnssec_to_x509 = copy_signature,
 };
 
 /*!
@@ -248,6 +248,11 @@ static const algorithm_functions_t ecdsa_functions = {
 	.dnssec_to_x509 = ecdsa_dnssec_to_x509,
 };
 
+static const algorithm_functions_t eddsa_functions = {
+	.x509_to_dnssec = copy_signature,
+	.dnssec_to_x509 = copy_signature,
+};
+
 /* -- crypto helper functions --------------------------------------------- */
 
 static const algorithm_functions_t *get_functions(const dnssec_key_t *key)
@@ -267,6 +272,7 @@ static const algorithm_functions_t *get_functions(const dnssec_key_t *key)
 	case DNSSEC_KEY_ALGORITHM_ECDSA_P384_SHA384:
 		return &ecdsa_functions;
 	case DNSSEC_KEY_ALGORITHM_ED25519:
+		return &eddsa_functions;
 	case DNSSEC_KEY_ALGORITHM_ED448:
 	default:
 		return NULL;
@@ -294,6 +300,7 @@ static gnutls_digest_algorithm_t get_digest_algorithm(const dnssec_key_t *key)
 	case DNSSEC_KEY_ALGORITHM_ECDSA_P384_SHA384:
 		return GNUTLS_DIG_SHA384;
 	case DNSSEC_KEY_ALGORITHM_ED25519:
+		return GNUTLS_DIG_SHA512;
 	case DNSSEC_KEY_ALGORITHM_ED448:
 	default:
 		return GNUTLS_DIG_UNKNOWN;
