@@ -65,7 +65,7 @@ RRTYPES = [ \
     [ 'SRV',      'g_srv',      0.25,  33 ], \
     [ 'KX',       'g_mx',       0.02,  36 ], \
     [ 'CERT',     'g_cert',     0.05,  37 ], \
-    [ 'DNAME',    'g_dname',    0.25,  39 ], \
+    [ 'DNAME',    'g_dname',    1,  39 ], \
     [ 'APL',      'g_apl',      0.05,  42 ], \
     [ 'SSHFP',    'g_sshfp',    0.10,  44 ], \
     [ 'IPSECKEY', 'g_ipseckey', 0.05,  45 ], \
@@ -97,15 +97,25 @@ for i, word in enumerate(WORDS):
         size = random.randint(2, 20)
         WORDS[i] = ''.join(random.choice(string.hexdigits) for _ in range(size))
 
-# For unique CNAMES/DNAMES
+# For unique CNAMES
 CNAME_EXIST = set([])
 # For unique names
 NAME_EXIST = set([])
+# For unique DNAMES
+DNAME_EXIST = set([])
 
 # For A/AAAA names
 A_NAMES = []
 AAAA_NAMES = []
-
+# Ensure owner isn't DNAME's subdomain
+def _sub_dname(dname):
+    count = 0
+    name = dname.split('.', 1)[1]
+    while name != name.split('.', 1)[0]:
+        if name in DNAME_EXIST:
+            return True
+        name = name.split('.', 1)[1]
+    return False
 # Generate random number
 def rnd(a, b):
     return random.randint(a, b)
@@ -140,7 +150,7 @@ def rnd_dname(enable_sub = 1):
 def rnd_dnl(enable_sub = 1):
     dn = rnd_dname(enable_sub)
     fqdn = g_fqdn(dn)
-    while fqdn.lower() in CNAME_EXIST:
+    while fqdn.lower() in CNAME_EXIST or _sub_dname(fqdn.lower()):
         dn = rnd_dname(enable_sub)
         fqdn = g_fqdn(dn)
     NAME_EXIST.add(fqdn.lower())
@@ -164,7 +174,7 @@ def rnd_ip4():
 def rnd_ip4_dnl():
     dn = rnd_ip4()
     fqdn = g_fqdn(dn)
-    while fqdn.lower() in CNAME_EXIST:
+    while fqdn.lower() in CNAME_EXIST or _sub_dname(fqdn.lower()):
         dn = rnd_ip4()
         fqdn = g_fqdn(dn)
     NAME_EXIST.add(fqdn.lower())
@@ -250,16 +260,20 @@ def g_srv(rt):
     name = '_%s._%s.%s' % (rnd_srv(), rnd_proto(), rnd_dnl())
     rdt = g_rdata(rt, '%d %d %d %s' % (rnd(1, 50), rnd(1, 50), rnd(1024, 65535), rnd_dnr()))
     return '%s %s %s' % (name, g_rtype(rt), rdt)
-
 def g_dname(rt):
     # Ensure unique owners for CNAME/DNAME
     dn = rnd_dname()
     fqdn = g_fqdn(dn)
     while (fqdn.lower() in CNAME_EXIST) or \
-          (fqdn.lower() in NAME_EXIST):
+          (fqdn.lower() in NAME_EXIST) or \
+          (fqdn.lower() in DNAME_EXIST) or \
+          _sub_dname(fqdn.lower()):
         dn = rnd_dname()
         fqdn = g_fqdn(dn)
-    CNAME_EXIST.add(fqdn.lower())
+    if rt[0] == 'DNAME':
+        DNAME_EXIST.add(fqdn.lower())
+    else:
+        CNAME_EXIST.add(fqdn.lower())
     # Value (domain-name)
     rd = rnd_dnr()
     CNAME_EXIST.add(g_fqdn(rd).lower())
@@ -535,8 +549,10 @@ def main(args):
         for name, node in zone.nodes.items():
             rdatasets = node.rdatasets
             for rdataset in rdatasets:
-                if rdataset.rdtype == CNAME:
+                if rdataset.rdtype == CNAME or rdataset.rdtype == NS:
                     CNAME_EXIST.add(name.to_text(omit_final_dot=True).lower())
+                elif rdataset.rdtype == DNAME:
+                    DNAME_EXIST.add(name.to_text(omit_final_dot=True).lower())
 
     outf = open(in_fname, "a")
 
