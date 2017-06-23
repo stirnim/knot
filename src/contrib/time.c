@@ -321,6 +321,10 @@ static int print_approx(char *dst, size_t dst_len, char *unit_names[unit_count],
 			size_t max_units, knot_time_t t)
 {
 	int ret;
+	if (t == 0) {
+		ret = snprintf(dst, dst_len, "0");
+		return (ret < 0 || ret >= dst_len ? -1 : 0);
+	}
 	knot_timediff_t diff = knot_time_diff(t, knot_time());
 	if (dst_len-- < 1) {
 		return -1;
