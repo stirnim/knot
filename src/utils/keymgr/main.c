@@ -15,6 +15,7 @@
 */
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 #include "knot/conf/conf.h"
@@ -172,6 +173,8 @@ main_end:
 	return ret;
 }
 
+static bool conf_initialized = false; // this is a singleton as well as conf() is
+
 static bool init_conf(const char *confdb)
 {
 	conf_flag_t flags = CONF_FNOHOSTNAME | CONF_FOPTMODULES;
@@ -215,33 +218,27 @@ static bool init_conf_blank(const char *kasp_dir)
 	return true;
 }
 
-int main(int argc, char *argv[])
-{
-	if (argc <= 1) {
-		print_help();
-		return EXIT_SUCCESS;
+#define chack_conf_uninit \
+	if ((conf_initialized = !conf_initialized) == false) { \
+		printf("Error: multiple arguments attempting configuration initializatioin.\n"); \
+		return EXIT_FAILURE; \
 	}
 
-	if (strcmp(argv[1], "--help") == 0) {
+int main(int argc, char *argv[])
+{
+	int opt, ret;
+
+	if (argc > 1 && strcmp(argv[1], "--help") == 0) {
 		print_help();
 		return EXIT_SUCCESS;
 	}
-	if (strcmp(argv[1], "--version") == 0) {
+	if (argc > 1 && strcmp(argv[1], "--version") == 0) {
 		print_version(PROGRAM_NAME);
 		return EXIT_SUCCESS;
 	}
 
-	int argpos = 1;
-
-	if (strlen(argv[1]) == 2 && argv[1][0] == '-') {
-
-#define check_argc_three if (argc < 3) { \
-	printf("Option %s requires an argument\n", argv[1]); \
-	print_help(); \
-	return EXIT_FAILURE; \
-}
-
-		switch (argv[1][1]) {
+	while ((opt = getopt(argc, argv, "hVd:c:C:t:")) >= 0) {
+		switch (opt) {
 		case 'h':
 			print_help();
 			return EXIT_SUCCESS;
@@ -249,41 +246,37 @@ int main(int argc, char *argv[])
 			print_version(PROGRAM_NAME);
 			return EXIT_SUCCESS;
 		case 'd':
-			check_argc_three
-			if (!init_conf(NULL) || !init_conf_blank(argv[2])) {
+			chack_conf_uninit
+			if (!init_conf(NULL) || !init_conf_blank(optarg)) {
 				return EXIT_FAILURE;
 			}
 			break;
 		case 'c':
-			check_argc_three
-			if (!init_conf(NULL) || !init_confile(argv[2])) {
+			chack_conf_uninit
+			if (!init_conf(NULL) || !init_confile(optarg)) {
 				return EXIT_FAILURE;
 			}
 			break;
 		case 'C':
-			check_argc_three
+			chack_conf_uninit
 			if (!init_conf(argv[2])) {
 				return EXIT_FAILURE;
 			}
 			break;
 		case 't':
-			check_argc_three
-			int ret = keymgr_generate_tsig(argv[2], (argc >= 4 ? argv[3] : "hmac-sha256"),
-			                               (argc >= 5 ? atol(argv[4]) : 0));
+			ret = keymgr_generate_tsig(optarg, (argc > optind ? argv[optind] : "hmac-sha256"),
+						   (argc > optind + 1 ? atol(argv[optind + 1]) : 0));
 			if (ret != KNOT_EOK) {
 				printf("Failed to generate TSIG (%s)\n", knot_strerror(ret));
 			}
 			return (ret == KNOT_EOK ? EXIT_SUCCESS : EXIT_FAILURE);
 		default:
-			printf("Wrong option: %s\n", argv[1]);
 			print_help();
 			return EXIT_FAILURE;
 		}
+	}
 
-#undef check_argc_three
-
-		argpos = 3;
-	} else {
+	if (!conf_initialized) {
 		struct stat st;
 		if (stat(CONF_DEFAULT_DBDIR, &st) == 0 && init_conf(CONF_DEFAULT_DBDIR)) {
 			// initialized conf from default DB location
@@ -296,7 +289,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	int ret = key_command(argc - argpos, argv + argpos);
+	ret = key_command(argc - optind, argv + optind);
 
 	conf_free(conf());
 
