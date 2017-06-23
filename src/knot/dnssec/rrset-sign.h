@@ -67,7 +67,7 @@ int knot_sign_rrset(knot_rrset_t *rrsigs,
  *
  * \return Error code, KNOT_EOK if successful.
  */
-int sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
+int knot_sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
                              const uint8_t *rrsig_rdata,
                              const knot_rrset_t *covered);
 

@@ -55,7 +55,7 @@ int err_handler_printf(err_handler_t *handler, const zone_contents_t *zone,
 	return KNOT_EOK;
 }
 
-int err_handler_printf_NSEC3(err_handler_t *handler, char *hash, const zone_contents_t *zone,
+int err_handler_printf_nsec3(err_handler_t *handler, char *hash, const zone_contents_t *zone,
 			const zone_node_t *node, int error, const char *data, int severity)
 {
 	assert(handler != NULL);
@@ -124,7 +124,7 @@ int zone_check(const char *zone_file, const knot_dname_t *zone_name,
 	err_handler_stats_t handler;
 	memset(&handler, 0, sizeof(handler));
 	handler._cb.cb = err_handler_printf;
-	handler._cb.NSEC3 = err_handler_printf_NSEC3;
+	handler._cb.nsec3 = err_handler_printf_nsec3;
 	handler.outfile = outfile;
 
 	zl.err_handler = (err_handler_t *)&handler;

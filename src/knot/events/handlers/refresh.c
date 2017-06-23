@@ -157,7 +157,7 @@ static int xfr_validate(zone_contents_t *zone, struct refresh_data *data)
 {
 	err_handler_logger_t handler;
 	handler._cb.cb = err_handler_logger;
-	handler._cb.NSEC3 = err_handler_logger_NSEC3;
+	handler._cb.nsec3 = err_handler_logger_nsec3;
 	int ret = zone_do_sem_checks(zone, false, &handler._cb, time(NULL));
 	if (ret != KNOT_EOK) {
 		// error is logged by the error handler

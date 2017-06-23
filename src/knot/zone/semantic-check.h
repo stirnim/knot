@@ -127,12 +127,12 @@ typedef struct err_handler err_handler_t;
 typedef int (*error_cb) (err_handler_t *ctx, const zone_contents_t *zone,
                          const zone_node_t *node, int error, const char *data, int severity);
 
-typedef int (*error_NSEC3) (err_handler_t *ctx, char *hash, const zone_contents_t *zone,
+typedef int (*error_nsec3) (err_handler_t *ctx, char *hash, const zone_contents_t *zone,
                          const zone_node_t *node, int error, const char *data, int severity);
 
 struct err_handler {
 	error_cb cb;
-	error_NSEC3 NSEC3;
+	error_nsec3 nsec3;
 };
 
 

@@ -382,7 +382,7 @@ int err_handler_logger(err_handler_t *handler, const zone_contents_t *zone,
 	return KNOT_EOK;
 }
 
-int err_handler_logger_NSEC3(err_handler_t *handler, char *hash, const zone_contents_t *zone,
+int err_handler_logger_nsec3(err_handler_t *handler, char *hash, const zone_contents_t *zone,
 			const zone_node_t *node, int error, const char *data, int severity)
 {
 	assert(handler != NULL);

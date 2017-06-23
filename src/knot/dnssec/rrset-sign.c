@@ -187,10 +187,14 @@ static int sign_ctx_add_records(dnssec_sign_ctx_t *ctx, const knot_rrset_t *cove
 	return result;
 }
 
-int sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
+int knot_sign_ctx_add_data(dnssec_sign_ctx_t *ctx,
                              const uint8_t *rrsig_rdata,
                              const knot_rrset_t *covered)
 {
+	if (!ctx || !rrsig_rdata || knot_rrset_empty(covered)) {
+		return KNOT_EINVAL;
+	}
+
 	int result = sign_ctx_add_self(ctx, rrsig_rdata);
 	if (result != KNOT_EOK) {
 		return result;
@@ -243,7 +247,7 @@ static int rrsigs_create_rdata(knot_rrset_t *rrsigs, dnssec_sign_ctx_t *ctx,
 		return res;
 	}
 
-	res = sign_ctx_add_data(ctx, header, covered);
+	res = knot_sign_ctx_add_data(ctx, header, covered);
 	if (res != KNOT_EOK) {
 		return res;
 	}
@@ -369,7 +373,7 @@ int knot_check_signature(const knot_rrset_t *covered,
 		return result;
 	}
 
-	result = sign_ctx_add_data(sign_ctx, rdata, covered);
+	result = knot_sign_ctx_add_data(sign_ctx, rdata, covered);
 	if (result != KNOT_EOK) {
 		return result;
 	}
