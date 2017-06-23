@@ -31,6 +31,6 @@ int keymgr_foreign_key_id(int argc, char *argv[], const char *req_action,
 
 int keymgr_set_timing(knot_kasp_key_t *key, int argc, char *argv[]);
 
-int keymgr_list_keys(kdnssec_ctx_t *ctx);
+int keymgr_list_keys(kdnssec_ctx_t *ctx, knot_time_print_t format);
 
 int keymgr_generate_ds(const knot_dname_t *dname, const knot_kasp_key_t *key);

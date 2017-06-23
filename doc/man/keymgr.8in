@@ -74,7 +74,7 @@ specified by config_storage.
 .SS Actions
 .INDENT 0.0
 .TP
-\fBlist\fP
+\fBlist\fP [\fItimestamp_format\fP]
 Prints the list of key IDs and parameters of keys belonging to the zone.
 .TP
 \fBgenerate\fP [\fIarguments\fP\&...]
@@ -148,6 +148,19 @@ Date and time in this format without any punctuation.
 The word "now" followed by sign (+, \-), a number and a shortcut for time unit
 (y, mo, d, h, mi, (nothing = seconds)), e.g. now+1mi, now\-2mo, now+10,
 now+0, now\-1y, ...
+.UNINDENT
+.SS Output timestamp formats
+.INDENT 0.0
+.TP
+(none)
+The timestamps are printed as UNIX timestamp.
+.TP
+\fBapprox\fP
+The timestamps are printed relatively to now, using max two units. E.g.
+\-2y5mo, +1h13s
+.TP
+\fBiso\fP
+The timestamps are printed in ISO8601 format.
 .UNINDENT
 .SH EXAMPLES
 .INDENT 0.0

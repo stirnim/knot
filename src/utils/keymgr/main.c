@@ -44,6 +44,7 @@ static void print_help(void)
 	       "\n"
 	       "Commands:\n"
 	       "   list         List all zone's KASP keys.\n"
+	       "                (syntax: list [<timestamp_format>])\n"
 	       "   generate     Generate new KASP key.\n"
 	       "                (syntax: generate <attribute_name>=<value>...)\n"
 	       "   import-bind  Import BIND-style key file pair (.key + .private).\n"
@@ -123,7 +124,13 @@ static int key_command(int argc, char *argv[])
 			}
 		}
 	} else if (strcmp(argv[1], "list") == 0) {
-		ret = keymgr_list_keys(&kctx);
+		knot_time_print_t format = TIME_PRINT_UNIX;
+		if (argc > 2 && strcmp(argv[2], "approx") == 0) {
+			format = TIME_PRINT_APPROX2;
+		} else if (argc > 2 && strcmp(argv[2], "iso") == 0) {
+			format = TIME_PRINT_ISO8601;
+		}
+		ret = keymgr_list_keys(&kctx, format);
 	} else if (strcmp(argv[1], "ds") == 0) {
 		if (argc < 3) {
 			printf("Key is not specified\n");

@@ -51,7 +51,7 @@ Config options
 Actions
 .......
 
-**list**
+**list** [*timestamp_format*]
   Prints the list of key IDs and parameters of keys belonging to the zone.
 
 **generate** [*arguments*...]
@@ -125,6 +125,19 @@ Timestamps
   The word "now" followed by sign (+, -), a number and a shortcut for time unit
   (y, mo, d, h, mi, (nothing = seconds)), e.g. now+1mi, now-2mo, now+10,
   now+0, now-1y, ...
+
+Output timestamp formats
+........................
+
+(none)
+  The timestamps are printed as UNIX timestamp.
+
+**approx**
+  The timestamps are printed relatively to now, using max two units. E.g.
+  -2y5mo, +1h13s
+
+**iso**
+  The timestamps are printed in ISO8601 format.
 
 Examples
 --------
