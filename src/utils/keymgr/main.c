@@ -18,6 +18,8 @@
 #include <sys/stat.h>
 
 #include "knot/conf/conf.h"
+#include "knot/common/log.h"
+#include "knot/common/process.h"
 #include "knot/dnssec/zone-keys.h"
 #include "libknot/libknot.h"
 #include "utils/common/params.h"
@@ -294,6 +296,16 @@ int main(int argc, char *argv[])
 			printf("Couldn't initialize configuration, please provide -c, -C or -d option\n");
 			return EXIT_FAILURE;
 		}
+	}
+
+	/* Alter privileges. */
+	int uid, gid;
+	if (conf_user(conf(), &uid, &gid) != KNOT_EOK ||
+	    log_update_privileges(uid, gid) != KNOT_EOK ||
+	    proc_update_privileges(uid, gid) != KNOT_EOK) {
+		printf("Error (failed to drop privileges)\n");
+		conf_free(conf());
+		return EXIT_FAILURE;
 	}
 
 	int ret = key_command(argc - argpos, argv + argpos);

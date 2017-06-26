@@ -18,6 +18,7 @@
 
 #include "knot/conf/conf.h"
 #include "knot/common/log.h"
+#include "knot/common/process.h"
 #include "utils/knotc/commands.h"
 #include "utils/knotc/process.h"
 
@@ -209,6 +210,16 @@ int process_cmd(int argc, const char **argv, params_t *params)
 	int ret = set_config(desc, params);
 	if (ret != KNOT_EOK) {
 		return ret;
+	}
+
+	/* Alter privileges. */
+	int uid, gid;
+	if (conf_user(conf(), &uid, &gid) != KNOT_EOK ||
+	    log_update_privileges(uid, gid) != KNOT_EOK ||
+	    proc_update_privileges(uid, gid) != KNOT_EOK) {
+		log_error("failed to drop privileges");
+		conf_update(NULL, CONF_UPD_FNONE);
+		return EACCES;
 	}
 
 	/* Prepare command parameters. */
