@@ -23,6 +23,7 @@
 #include "knot/events/handlers.h"
 #include "knot/events/log.h"
 #include "knot/events/replan.h"
+#include "knot/zone/zone-diff.h"
 #include "knot/zone/zone-load.h"
 #include "knot/zone/zone.h"
 #include "knot/zone/zonefile.h"
@@ -32,17 +33,24 @@ int event_load(conf_t *conf, zone_t *zone)
 	assert(zone);
 
 	zone_contents_t *contents = NULL;
-	bool load_from_journal = false;
 	zone_sign_reschedule_t dnssec_refresh = { 0 };
 	dnssec_refresh.allow_rollover = true;
 
-	/* Take zone file mtime and load it. */
 	time_t mtime;
 	char *filename = conf_zonefile(conf, zone->name);
 	int ret = zonefile_exists(filename, &mtime);
+	bool load_from_journal = (ret != KNOT_EOK);
 	free(filename);
-	if (ret != KNOT_EOK) {
-		load_from_journal = true;
+
+
+	bool load_journal_first = false;
+	bool loaded_from_journal = false;
+	if (zone->contents == NULL) {
+		conf_val_t val = conf_zone_get(conf, C_ZONE_IN_JOURNAL, zone->name);
+		load_journal_first = conf_bool(&val);
+	}
+
+	if (load_from_journal) {
 		ret = zone_load_from_journal(conf, zone, &contents);
 		if (ret != KNOT_EOK) {
 			if (zone_load_can_bootstrap(conf, zone->name)) {
@@ -53,11 +61,28 @@ int event_load(conf_t *conf, zone_t *zone)
 			goto fail;
 		}
 		goto load_post;
+	} else if (load_journal_first) {
+		ret = zone_load_from_journal(conf, zone, &contents);
+		if (ret != KNOT_EOK && ret != KNOT_ENOENT) {
+			goto fail;
+		}
+		loaded_from_journal = (ret == KNOT_EOK);
+		if (loaded_from_journal) {
+			goto load_post;
+		}
 	}
 
 	ret = zone_load_contents(conf, zone->name, &contents);
 	if (ret != KNOT_EOK) {
 		goto fail;
+	}
+
+	if (load_journal_first && !loaded_from_journal) {
+		ret = zone_in_journal_store(conf, zone, contents);
+		if (ret != KNOT_EOK) {
+			log_zone_warning(zone->name, "failed to write zone-in-journal (%s)",
+					 knot_strerror(ret));
+		}
 	}
 
 	/* Store the zonefile SOA serial. */
@@ -123,6 +148,11 @@ load_post:
 	// TODO: track serial across restart and avoid unnecessary notify
 	if (!load_from_journal && (!old_contents || old_serial != current_serial)) {
 		zone_events_schedule_now(zone, ZONE_EVENT_NOTIFY);
+	}
+
+	if (loaded_from_journal) {
+		// this enforces further load from zone file and applying ixfr from diff
+		zone_events_schedule_now(zone, ZONE_EVENT_LOAD);
 	}
 
 	return KNOT_EOK;

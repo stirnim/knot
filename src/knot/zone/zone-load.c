@@ -226,6 +226,10 @@ int zone_load_post(conf_t *conf, zone_t *zone, zone_contents_t *contents,
 	bool dnssec_enable = conf_bool(&val);
 	val = conf_zone_get(conf, C_IXFR_DIFF, zone->name);
 	bool build_diffs = conf_bool(&val);
+	if (!build_diffs) {
+		val = conf_zone_get(conf, C_ZONE_IN_JOURNAL, zone->name);
+		build_diffs = conf_bool(&val);
+	}
 	if (dnssec_enable) {
 		/* Perform NSEC3 resalt and ZSK rollover if needed. */
 		kdnssec_ctx_t kctx = { 0 };
@@ -282,16 +286,22 @@ int zone_load_post(conf_t *conf, zone_t *zone, zone_contents_t *contents,
 			return ret;
 		}
 		ret = zone_contents_diff(zone->contents, contents, &change);
-		if (ret == KNOT_ENODIFF) {
+		switch (ret) {
+		case KNOT_ESEMCHECK:
 			log_zone_warning(zone->name, "failed to create journal "
 			                 "entry, zone file changed without "
 			                 "SOA serial update");
-			ret = KNOT_EOK;
-		} else if (ret == KNOT_ERANGE) {
+			break;
+		case KNOT_ERANGE:
 			log_zone_warning(zone->name, "IXFR history will be lost, "
 			                 "zone file changed, but SOA serial decreased");
+			break;
+		case KNOT_EOK:
+		case KNOT_ENODIFF:
+			// all ok
 			ret = KNOT_EOK;
-		} else if (ret != KNOT_EOK) {
+			break;
+		default:
 			log_zone_error(zone->name, "failed to calculate "
 			               "differences from the zone file update (%s)",
 			               knot_strerror(ret));
@@ -300,7 +310,7 @@ int zone_load_post(conf_t *conf, zone_t *zone, zone_contents_t *contents,
 	}
 
 	/* Write changes (DNSSEC, diff, or both) to journal if all went well. */
-	if (!changeset_empty(&change)) {
+	if (ret == KNOT_EOK && !changeset_empty(&change)) {
 		ret = zone_change_store(conf, zone, &change);
 		if (ret == KNOT_ESPACE) {
 			log_zone_error(zone->name, "journal size is too small "
