@@ -1101,6 +1101,8 @@ int zone_contents_shallow_copy(const zone_contents_t *from, zone_contents_t **to
 		contents->nsec3_nodes = NULL;
 	}
 
+	contents->master_serial = from->master_serial;
+
 	*to = contents;
 	return KNOT_EOK;
 }
@@ -1150,6 +1152,14 @@ uint32_t zone_contents_serial(const zone_contents_t *zone)
 	}
 
 	return knot_soa_serial(soa);
+}
+
+void zone_contents_set_soa_serial(zone_contents_t *zone, uint32_t new_serial)
+{
+	knot_rdataset_t *soa;
+	if (zone != NULL && (soa = node_rdataset(zone->apex, KNOT_RRTYPE_SOA)) != NULL) {
+		knot_soa_serial_set(soa, new_serial);
+	}
 }
 
 bool zone_contents_is_signed(const zone_contents_t *zone)

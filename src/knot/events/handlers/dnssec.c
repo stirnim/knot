@@ -122,5 +122,8 @@ int event_dnssec(conf_t *conf, zone_t *zone)
 
 done:
 	changeset_clear(&ch);
+
+	printf("dnssec local serial %u, master serial %u\n", zone_contents_serial(zone->contents), zone->contents->master_serial);
+
 	return ret;
 }

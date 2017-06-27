@@ -62,6 +62,7 @@ static int init_full(zone_update_t *update, zone_t *zone)
 	if (update->new_cont == NULL) {
 		return KNOT_ENOMEM;
 	}
+	update->new_cont->master_serial = (zone->contents ? zone->contents->master_serial : 0);
 
 	apply_init_ctx(&update->a_ctx, update->new_cont, 0);
 

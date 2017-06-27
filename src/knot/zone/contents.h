@@ -42,6 +42,8 @@ typedef struct zone_contents {
 
 	dnssec_nsec3_params_t nsec3_params;
 	size_t size;
+
+	uint32_t master_serial; /*!< SOA serial of master (differs from apex SOA serial if on-slave signing enabled */
 } zone_contents_t;
 
 /*!
@@ -251,6 +253,16 @@ void zone_contents_deep_free(zone_contents_t **contents);
  * \return serial or 0
  */
 uint32_t zone_contents_serial(const zone_contents_t *zone);
+
+/*!
+ * \brief Adjust zone serial.
+ *
+ * Works only if there is a SOA in given contents.
+ *
+ * \param zone        Zone.
+ * \param new_serial  New serial to be set.
+ */
+void zone_contents_set_soa_serial(zone_contents_t *zone, uint32_t new_serial);
 
 /*!
  * \brief Return true if zone is signed.

@@ -248,6 +248,11 @@ static int axfr_finalize(struct refresh_data *data)
 		return ret;
 	}
 
+	new_zone->master_serial = zone_contents_serial(new_zone);
+	uint32_t new_local_serial = zone_contents_serial(data->zone->contents);
+	new_local_serial = serial_next(new_local_serial, SERIAL_POLICY_INCREMENT); // TODO correct serial policy
+	zone_contents_set_soa_serial(data->zone->contents, new_local_serial);
+
 	ret = zone_in_journal_store(data->conf, data->zone, new_zone);
 	if (ret != KNOT_EOK && ret != KNOT_EEXIST && ret != KNOT_ENOTSUP) {
 		IXFRIN_LOG(LOG_WARNING, data->zone->name, data->remote,
@@ -411,6 +416,16 @@ static int ixfr_finalize(struct refresh_data *data)
 		return KNOT_ENOMEM;
 	}
 
+	uint32_t new_master_serial = data->zone->contents->master_serial;
+	uint32_t new_local_serial = zone_contents_serial(data->zone->contents);
+	changeset_t *chs = NULL;
+	WALK_LIST(chs, data->ixfr.changesets) {
+		new_master_serial = zone_contents_serial(chs->add);
+		zone_contents_set_soa_serial(chs->remove, new_local_serial);
+		new_local_serial = serial_next(new_local_serial, SERIAL_POLICY_INCREMENT); // TODO correct serial policy
+		zone_contents_set_soa_serial(chs->add, new_local_serial);
+	}
+
 	apply_init_ctx(ctx, NULL, APPLY_STRICT);
 	int ret = apply_changesets(ctx, data->zone->contents,
 	                           &data->ixfr.changesets, &new_zone);
@@ -423,6 +438,8 @@ static int ixfr_finalize(struct refresh_data *data)
 	}
 
 	assert(new_zone != NULL);
+
+	new_zone->master_serial = new_master_serial;
 
 	ret = xfr_validate(new_zone, data);
 	if (ret != KNOT_EOK) {
@@ -689,7 +706,7 @@ static int ixfr_consume(knot_pkt_t *pkt, struct refresh_data *data)
 	if (data->ixfr.proc == NULL) {
 		const knot_pktsection_t *answer = knot_pkt_section(pkt, KNOT_ANSWER);
 
-		data->xfr_type = determine_xfr_type(answer, knot_soa_serial(&data->soa->rrs),
+		data->xfr_type = determine_xfr_type(answer, data->zone->contents->master_serial,
 		                                    data->initial_soa_copy);
 		switch (data->xfr_type) {
 		case XFR_TYPE_ERROR:
@@ -795,6 +812,9 @@ static int soa_query_consume(knot_layer_t *layer, knot_pkt_t *pkt)
 	}
 
 	uint32_t local_serial = knot_soa_serial(&data->soa->rrs);
+	if (data->zone->contents->master_serial != 0) {
+		local_serial = data->zone->contents->master_serial;
+	}
 	uint32_t remote_serial = knot_soa_serial(&rr->rrs);
 	bool current = serial_is_current(local_serial, remote_serial);
 	bool master_uptodate = serial_is_current(remote_serial, local_serial);
@@ -824,8 +844,14 @@ static int transfer_produce(knot_layer_t *layer, knot_pkt_t *pkt)
 
 	if (ixfr) {
 		assert(data->soa);
+		knot_rrset_t *sending_soa = knot_rrset_copy(data->soa, data->mm);
+		if (sending_soa == NULL) {
+			return KNOT_STATE_FAIL;
+		}
+		knot_soa_serial_set(&sending_soa->rrs, data->zone->contents->master_serial);
 		knot_pkt_begin(pkt, KNOT_AUTHORITY);
-		knot_pkt_put(pkt, KNOT_COMPR_HINT_QNAME, data->soa, 0);
+		knot_pkt_put(pkt, KNOT_COMPR_HINT_QNAME, sending_soa, 0);
+		knot_rrset_free(&sending_soa, data->mm);
 	}
 
 	query_put_edns(pkt, &data->edns);
@@ -1064,7 +1090,12 @@ int event_refresh(conf_t *conf, zone_t *zone)
 	if (updated) {
 		zone_events_schedule_at(zone, ZONE_EVENT_NOTIFY, time(NULL) + 1);
 
-		conf_val_t val = conf_zone_get(conf, C_ZONEFILE_SYNC, zone->name);
+		conf_val_t val = conf_zone_get(conf, C_DNSSEC_SIGNING, zone->name);
+		if (conf_bool(&val)) {
+			zone_events_schedule_now(zone, ZONE_EVENT_DNSSEC);
+		}
+
+		val = conf_zone_get(conf, C_ZONEFILE_SYNC, zone->name);
 		int64_t sync_timeout = conf_int(&val);
 		if (sync_timeout == 0) {
 			zone_events_schedule_now(zone, ZONE_EVENT_FLUSH);
@@ -1074,6 +1105,8 @@ int event_refresh(conf_t *conf, zone_t *zone)
 	if (!bootstrap) {
 		mem_trim();
 	}
+
+	printf("refresh local serial %u, master serial %u\n", zone_contents_serial(zone->contents), zone->contents->master_serial);
 
 	return KNOT_EOK;
 }
