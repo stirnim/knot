@@ -37,6 +37,7 @@ int event_nsec3resalt(conf_t *conf, zone_t *zone)
 	}
 
 	if (next_resalt) {
+		zone->timers.next_resalt = next_resalt;
 		zone_events_schedule_at(zone, ZONE_EVENT_NSEC3RESALT, next_resalt);
 	}
 

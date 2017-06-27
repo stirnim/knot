@@ -73,7 +73,6 @@ static void replan_dnssec(conf_t *conf, zone_t *zone)
 
 	conf_val_t val = conf_zone_get(conf, C_DNSSEC_SIGNING, zone->name);
 	if (conf_bool(&val)) {
-		zone_events_schedule_now(zone, ZONE_EVENT_NSEC3RESALT);
 		zone_events_schedule_now(zone, ZONE_EVENT_DNSSEC);
 	}
 }
@@ -84,12 +83,14 @@ static bool can_expire(const zone_t *zone)
 }
 
 /*!
- * \brief Replan events that depend on zone timers (REFRESH, EXPIRE, FLUSH).
+ * \brief Replan events that depend on zone timers (REFRESH, EXPIRE, FLUSH, RESALT, PARENT DS QUERY).
  */
 void replan_from_timers(conf_t *conf, zone_t *zone)
 {
 	assert(conf);
 	assert(zone);
+
+	time_t now = time(NULL);
 
 	time_t refresh = TIME_CANCEL;
 	if (zone_is_slave(conf, zone)) {
@@ -113,11 +114,27 @@ void replan_from_timers(conf_t *conf, zone_t *zone)
 		}
 	}
 
+	time_t resalt = TIME_IGNORE;
+	conf_val_t val = conf_zone_get(conf, C_DNSSEC_SIGNING, zone->name);
+	if (conf_bool(&val)) {
+		if (zone->timers.next_resalt < now) {
+			resalt = now;
+		} else {
+			resalt = zone->timers.next_resalt;
+		}
+	}
+
+	// ds == 0: CDS not published
+	// ds < now: CDS published, P. DS Q. planned
+	time_t ds = zone->timers.next_parent_ds_q;
+	ds = (ds < now)? ((ds == 0)? TIME_IGNORE : now) : ds;
 	zone_events_schedule_at(zone,
 	                        ZONE_EVENT_REFRESH, refresh,
 	                        ZONE_EVENT_EXPIRE, expire_pre,
 	                        ZONE_EVENT_EXPIRE, expire,
-	                        ZONE_EVENT_FLUSH, flush);
+	                        ZONE_EVENT_FLUSH, flush,
+	                        ZONE_EVENT_NSEC3RESALT, resalt,
+	                        ZONE_EVENT_PARENT_DS_Q, ds);
 }
 
 void replan_load_new(zone_t *zone)

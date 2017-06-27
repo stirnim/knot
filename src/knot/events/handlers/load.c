@@ -114,9 +114,6 @@ load_post:
 
 	conf_val_t val = conf_zone_get(conf, C_DNSSEC_SIGNING, zone->name);
 	if (conf_bool(&val)) {
-		zone_events_schedule_now(zone, ZONE_EVENT_NSEC3RESALT);
-		// if nothing to be done NOW for any of those, they will replan themselves for later
-
 		event_dnssec_reschedule(conf, zone, &dnssec_refresh, false); // false since we handle NOTIFY below
 	}
 

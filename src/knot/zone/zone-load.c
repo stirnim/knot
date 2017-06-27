@@ -235,12 +235,16 @@ int zone_load_post(conf_t *conf, zone_t *zone, zone_contents_t *contents,
 			return ret;
 		}
 
-		bool ignore1 = false; knot_time_t ignore2 = 0;
-		ret = knot_dnssec_nsec3resalt(&kctx, &ignore1, &ignore2);
+		bool ignore1 = false; knot_time_t next_resalt = 0;
+		ret = knot_dnssec_nsec3resalt(&kctx, &ignore1, &next_resalt);
 		if (ret != KNOT_EOK) {
 			kdnssec_ctx_deinit(&kctx);
 			changeset_clear(&change);
 			return ret;
+		}
+
+		if (next_resalt > time(NULL)) {
+			zone->timers.next_resalt = next_resalt;
 		}
 
 		if (zone_has_key_sbm(&kctx)) {

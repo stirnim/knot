@@ -214,10 +214,11 @@ int event_parent_ds_q(conf_t *conf, zone_t *zone)
 			}
 		}
 	}
-
+	zone->timers.next_parent_ds_q = 0;
 	if (ret != KNOT_EOK) {
 		if (ctx.policy->ksk_sbm_check_interval > 0) {
 			time_t next_check = time(NULL) + ctx.policy->ksk_sbm_check_interval;
+			zone->timers.next_parent_ds_q = next_check;
 			zone_events_schedule_at(zone, ZONE_EVENT_PARENT_DS_Q, next_check);
 		}
 	} else {
