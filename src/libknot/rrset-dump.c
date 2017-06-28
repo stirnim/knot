@@ -1207,10 +1207,6 @@ static size_t dnskey_len(const uint8_t *rdata,
 	const size_t  len = rdata_len - 4;
 
 	switch (rdata[3]) {
-	case KNOT_DNSSEC_ALG_DSA:
-	case KNOT_DNSSEC_ALG_DSA_NSEC3_SHA1:
-		// RFC 2536, key size ~ bit-length of 'modulus' P.
-		return (64 + 8 * key[0]) * 8;
 	case KNOT_DNSSEC_ALG_RSAMD5:
 	case KNOT_DNSSEC_ALG_RSASHA1:
 	case KNOT_DNSSEC_ALG_RSASHA1_NSEC3_SHA1:

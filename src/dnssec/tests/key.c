@@ -196,7 +196,6 @@ int main(void)
 
 	static const keyinfo_t keys[] = {
 		{ "RSA", &SAMPLE_RSA_KEY },
-		{ "DSA", &SAMPLE_DSA_KEY },
 		{ "ECDSA", &SAMPLE_ECDSA_KEY },
 		{ NULL }
 	};

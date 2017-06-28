@@ -100,7 +100,6 @@ int main(int argc, char *argv[])
 	dnssec_crypto_init();
 
 	test_key("RSA",   &SAMPLE_RSA_KEY);
-	test_key("DSA",   &SAMPLE_DSA_KEY);
 	test_key("ECDSA", &SAMPLE_ECDSA_KEY);
 
 	test_errors(&SAMPLE_ECDSA_KEY);

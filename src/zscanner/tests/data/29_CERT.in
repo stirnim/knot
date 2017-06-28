@@ -16,9 +16,7 @@ $TTL	1
 @	CERT	OID	0	0	AA==		; Certificate type mnemo
 @	CERT	0	0	RSAMD5	AA==		; Algorithm mnemo
 @	CERT	0	0	DH	AA==		; Algorithm mnemo
-@	CERT	0	0	DSA	AA==		; Algorithm mnemo
 @	CERT	0	0	RSASHA1	AA==		; Algorithm mnemo
-@	CERT	0	0	DSA-NSEC3-SHA1	AA==		; Algorithm mnemo
 @	CERT	0	0	RSASHA1-NSEC3-SHA1	AA==	; Algorithm mnemo
 @	CERT	0	0	RSASHA256	AA==		; Algorithm mnemo
 @	CERT	0	0	RSASHA512	AA==		; Algorithm mnemo

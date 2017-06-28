@@ -1664,9 +1664,7 @@
 		( number                %_num8_write
 		| "RSAMD5"i             %_write8_1
 		| "DH"i                 %_write8_2
-		| "DSA"i                %_write8_3
 		| "RSASHA1"i            %_write8_5
-		| "DSA-NSEC3-SHA1"i     %_write8_6
 		| "RSASHA1-NSEC3-SHA1"i %_write8_7
 		| "RSASHA256"i          %_write8_8
 		| "RSASHA512"i          %_write8_10

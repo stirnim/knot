@@ -464,7 +464,6 @@ int main(int argc, char *argv[])
 	static const key_parameters_t *KEYS[] = {
 		&SAMPLE_RSA_KEY,
 		&SAMPLE_ECDSA_KEY,
-		&SAMPLE_DSA_KEY,
 	};
 	assert(KEYS_COUNT == sizeof(KEYS) / sizeof(*KEYS));
 

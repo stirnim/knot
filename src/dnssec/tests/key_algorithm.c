@@ -57,7 +57,6 @@ static void check_borders(void)
 
 static void check_defaults(void)
 {
-	is_int(1024, dnssec_algorithm_key_size_default(DNSSEC_KEY_ALGORITHM_DSA_SHA1_NSEC3), "dsa default");
 	is_int(2048, dnssec_algorithm_key_size_default(DNSSEC_KEY_ALGORITHM_RSA_SHA1_NSEC3), "rsa default");
 	is_int(256, dnssec_algorithm_key_size_default(DNSSEC_KEY_ALGORITHM_ECDSA_P256_SHA256), "ecc default");
 }
@@ -67,17 +66,10 @@ int main(void)
 	plan_lazy();
 
 	// ranges
-	ok_range(DNSSEC_KEY_ALGORITHM_DSA_SHA1, 512, 1024, "DSA/SHA1");
 	ok_range(DNSSEC_KEY_ALGORITHM_RSA_SHA256, 512, 4096, "RSA/SHA256");
 	ok_range(DNSSEC_KEY_ALGORITHM_RSA_SHA512, 1024, 4096, "RSA/SHA512");
 	ok_range(DNSSEC_KEY_ALGORITHM_ECDSA_P384_SHA384, 384, 384, "ECDSA/SHA384");
 	null_range();
-
-	// special restrictions
-	dnssec_key_algorithm_t dsa = DNSSEC_KEY_ALGORITHM_DSA_SHA1_NSEC3;
-	ok(dnssec_algorithm_key_size_check(dsa, 512), "dsa 512");
-	ok(dnssec_algorithm_key_size_check(dsa, 704), "dsa 704");
-	ok(dnssec_algorithm_key_size_check(dsa, 832), "dsa 832");
 
 	check_borders();
 

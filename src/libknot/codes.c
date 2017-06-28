@@ -62,9 +62,7 @@ _public_
 const knot_lookup_t knot_dnssec_alg_names[] = {
 	{ KNOT_DNSSEC_ALG_RSAMD5,             "RSAMD5" },
 	{ KNOT_DNSSEC_ALG_DH,                 "DH" },
-	{ KNOT_DNSSEC_ALG_DSA,                "DSA" },
 	{ KNOT_DNSSEC_ALG_RSASHA1,            "RSASHA1" },
-	{ KNOT_DNSSEC_ALG_DSA_NSEC3_SHA1,     "DSA_NSEC3_SHA1" },
 	{ KNOT_DNSSEC_ALG_RSASHA1_NSEC3_SHA1, "RSASHA1_NSEC3_SHA1" },
 	{ KNOT_DNSSEC_ALG_RSASHA256,          "RSASHA256" },
 	{ KNOT_DNSSEC_ALG_RSASHA512,          "RSASHA512" },
