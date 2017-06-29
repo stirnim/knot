@@ -19,6 +19,7 @@
 #include <tap/basic.h>
 
 #include "libknot/errcode.h"
+#include "libknot/error.h"
 #include "knot/updates/changesets.h"
 
 int main(int argc, char *argv[])
@@ -144,6 +145,19 @@ int main(int argc, char *argv[])
 	// Test merge.
 	ret = changeset_merge(ch, ch2);
 	ok(ret == KNOT_EOK && changeset_size(ch) == 5, "changeset: merge");
+
+	// Test preapply fix.
+	zone_contents_t *z = zone_contents_new((const knot_dname_t *)"\x04""test");
+	knot_dname_free(&apex_txt_rr->owner, NULL);
+	apex_txt_rr->owner = knot_dname_from_str_alloc("something.test.");
+	assert(apex_txt_rr->owner);
+	zone_node_t *znode = NULL;
+	ret = zone_contents_add_rr(z, apex_txt_rr, &znode);
+	assert(ret == KNOT_EOK);
+	ret = changeset_preapply_fix(z, ch2);
+	ok(ret == KNOT_EOK, "changeset: preapply fix ok (%s)", knot_strerror(ret));
+	ok(changeset_empty(ch2), "changeset: preapply fix works");
+	zone_contents_deep_free(&z);
 
 	// Test cleanup.
 	changeset_clear(ch);
