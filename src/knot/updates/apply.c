@@ -195,9 +195,11 @@ static int apply_single(apply_ctx_t *ctx, const changeset_t *chset)
 
 	zone_contents_t *contents = ctx->contents;
 
+	bool ignore_soa = (chset->soa_from == NULL && chset->soa_to == NULL);
+
 	// check if serial matches
 	const knot_rdataset_t *soa = node_rdataset(contents->apex, KNOT_RRTYPE_SOA);
-	if (soa == NULL || knot_soa_serial(soa) != knot_soa_serial(&chset->soa_from->rrs)) {
+	if (soa == NULL || (!ignore_soa && knot_soa_serial(soa) != knot_soa_serial(&chset->soa_from->rrs))) {
 		return KNOT_EINVAL;
 	}
 
@@ -211,7 +213,7 @@ static int apply_single(apply_ctx_t *ctx, const changeset_t *chset)
 		return ret;
 	}
 
-	return apply_replace_soa(ctx, chset);
+	return (ignore_soa ? KNOT_EOK : apply_replace_soa(ctx, chset));
 }
 
 /* ------------------------------- API -------------------------------------- */

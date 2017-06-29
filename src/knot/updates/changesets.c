@@ -164,7 +164,7 @@ static void check_redundancy(zone_contents_t *counterpart, const knot_rrset_t *r
 		// Remove empty type.
 		node_remove_rdataset(node, rr->type);
 
-		if (node->rrset_count == 0) {
+		if (node->rrset_count == 0 && node != counterpart->apex) {
 			// Remove empty node.
 			zone_tree_t *t = knot_rrset_is_nsec3rel(rr) ?
 								 counterpart->nsec3_nodes : counterpart->nodes;
@@ -381,6 +381,10 @@ int changeset_merge(changeset_t *ch1, const changeset_t *ch2)
 
 	// Use soa_to and serial from the second changeset
 	// soa_to from the first changeset is redundant, delete it
+	if (ch2->soa_to == NULL && ch2->soa_from == NULL) {
+		// but not if ch2 has no soa change
+		return KNOT_EOK;
+	}
 	knot_rrset_t *soa_copy = knot_rrset_copy(ch2->soa_to, NULL);
 	if (soa_copy == NULL && ch2->soa_to) {
 		return KNOT_ENOMEM;

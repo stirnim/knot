@@ -29,6 +29,7 @@
 #include "knot/dnssec/context.h"
 #include "knot/dnssec/zone-keys.h"
 #include "knot/updates/changesets.h"
+#include "knot/updates/zone-update.h"
 #include "knot/zone/contents.h"
 
 /*!
@@ -75,9 +76,9 @@ knot_dname_t *knot_create_nsec3_owner(const knot_dname_t *owner,
  *
  * \return Error code, KNOT_EOK if successful.
  */
-int knot_zone_create_nsec_chain(const zone_contents_t *zone,
-                                changeset_t *changeset,
+int knot_zone_create_nsec_chain(zone_update_t *update,
                                 const zone_keyset_t *zone_keys,
-                                const kdnssec_ctx_t *dnssec_ctx);
+                                const kdnssec_ctx_t *dnssec_ctx,
+                                bool sign_nsec_chain);
 
 /*! @} */

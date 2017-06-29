@@ -1,4 +1,4 @@
-/*  Copyright (C) 2013 CZ.NIC, z.s.p.o. <knot-dns@labs.nic.cz>
+/*  Copyright (C) 2017 CZ.NIC, z.s.p.o. <knot-dns@labs.nic.cz>
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -13,25 +13,15 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-/*!
- * \file zone-sign.h
- *
- * \author Jan Vcelak <jan.vcelak@nic.cz>
- * \author Lubos Slovak <lubos.slovak@nic.cz>
- * \author Jan Kadlec <jan.kadlec@nic.cz>
- *
- * \brief Interface for DNSSEC signing of zones.
- *
- * \addtogroup dnssec
- * @{
- */
 
 #pragma once
 
 #include "knot/updates/changesets.h"
+#include "knot/updates/zone-update.h"
 #include "knot/zone/zone.h"
 #include "knot/zone/contents.h"
 #include "knot/dnssec/context.h"
+#include "knot/dnssec/zone-events.h"
 #include "knot/dnssec/zone-keys.h"
 
 /*!
@@ -47,25 +37,9 @@
  *
  * \return Error code, KNOT_EOK if successful.
  */
-int knot_zone_sign(const zone_contents_t *zone,
+int knot_zone_sign(zone_update_t *update,
                    zone_keyset_t *zone_keys,
-                   const kdnssec_ctx_t *dnssec_ctx,
-                   changeset_t *out_ch, knot_time_t *expire_at);
-
-/*!
- * \brief Update and sign SOA and store performed changes in changeset.
- *
- * \param zone       Zone including SOA to be updated.
- * \param zone_keys  Zone keys.
- * \param policy     DNSSEC policy.
- * \param changeset  Changeset to be updated.
- *
- * \return Error code, KNOT_EOK if successful.
- */
-int knot_zone_sign_update_soa(const knot_rrset_t *soa, const knot_rrset_t *rrsigs,
-                              const zone_keyset_t *zone_keys,
-                              const kdnssec_ctx_t *dnssec_ctx,
-                              changeset_t *changeset);
+                   const kdnssec_ctx_t *dnssec_ctx, knot_time_t *expire_at);
 
 /*!
  * \brief Check if zone SOA signatures are expired.
@@ -80,23 +54,6 @@ int knot_zone_sign_update_soa(const knot_rrset_t *soa, const knot_rrset_t *rrsig
 bool knot_zone_sign_soa_expired(const zone_contents_t *zone,
                                 const zone_keyset_t *zone_keys,
                                 const kdnssec_ctx_t *dnssec_ctx);
-
-/*!
- * \brief Sign changeset created by DDNS or zone-diff.
- *
- * \param zone New zone contents.
- * \param in_ch Changeset created bvy DDNS or zone-diff
- * \param out_ch New records will be added to this changeset.
- * \param zone_keys Keys to use for signing.
- * \param policy DNSSEC signing policy.
- *
- * \return Error code, KNOT_EOK if successful.
- */
-int knot_zone_sign_changeset(const zone_contents_t *zone,
-                             const changeset_t *in_ch,
-                             changeset_t *out_ch,
-                             const zone_keyset_t *zone_keys,
-                             const kdnssec_ctx_t *dnssec_ctx);
 
 /*!
  * \brief Sign NSEC/NSEC3 nodes in changeset and update the changeset.
@@ -127,4 +84,14 @@ bool knot_zone_sign_rr_should_be_signed(const zone_node_t *node,
 
 bool knot_match_key_ds(zone_key_t *key, const knot_rdata_t *rdata);
 
-/*! @} */
+/*!
+ * \brief knot_zone_sign_update
+ * \param update
+ * \param reschedule
+ * \return
+ * \todo this comment TODO
+ */
+int knot_zone_sign_update(zone_update_t *update, zone_keyset_t *zone_keys,
+                          const kdnssec_ctx_t *dnssec_ctx, knot_time_t *expire_at);
+
+int knot_zone_sign_soa(zone_update_t *update, const zone_keyset_t *zone_keys, const kdnssec_ctx_t *dnssec_ctx);

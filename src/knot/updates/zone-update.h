@@ -62,6 +62,7 @@ typedef enum {
  * \param update  Zone update structure to init.
  * \param zone    Init with this zone.
  * \param flags   Flags to control the behavior of the update.
+ * \param extra_contents Work with different contents than zone->contents.
  *
  * \return KNOT_E*
  */
@@ -203,6 +204,16 @@ int zone_update_apply_changeset(zone_update_t *update, const changeset_t *change
  * \return KNOT_E*
  */
 int zone_update_apply_changeset_fix(zone_update_t *update, changeset_t *changes);
+
+/*!
+ * \brief Increment SOA serial (according to cofigured policy) in the update.
+ *
+ * \param update  Update to be modified.
+ * \param conf    Configuration.
+ *
+ * \return KNOT_E*
+ */
+int zone_update_increment_soa(zone_update_t *update, conf_t *conf);
 
 /*!
  * \brief Commits all changes to the zone, signs it, saves changes to journal.

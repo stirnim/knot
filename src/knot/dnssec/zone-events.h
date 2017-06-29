@@ -20,12 +20,12 @@
 
 #include "knot/zone/zone.h"
 #include "knot/updates/changesets.h"
+#include "knot/updates/zone-update.h"
 #include "knot/dnssec/context.h"
 
 enum zone_sign_flags {
 	ZONE_SIGN_NONE = 0,
 	ZONE_SIGN_DROP_SIGNATURES = (1 << 0),
-	ZONE_SIGN_KEEP_SOA_SERIAL = (1 << 1),
 };
 
 typedef enum zone_sign_flags zone_sign_flags_t;
@@ -60,7 +60,7 @@ int knot_dnssec_sign_process_events(const kdnssec_ctx_t *kctx,
  *
  * \return Error code, KNOT_EOK if successful.
  */
-int knot_dnssec_zone_sign(zone_contents_t *zone, changeset_t *out_ch,
+int knot_dnssec_zone_sign(zone_update_t *update,
                           zone_sign_flags_t flags, zone_sign_reschedule_t *reschedule);
 
 /*!
@@ -72,11 +72,9 @@ int knot_dnssec_zone_sign(zone_contents_t *zone, changeset_t *out_ch,
  * \param refresh_at      Signature refresh time of the new signatures.
  *
  * \return Error code, KNOT_EOK if successful.
+ * \todo this comment TODO
  */
-int knot_dnssec_sign_changeset(const zone_contents_t *zone,
-                               const changeset_t *in_ch,
-                               changeset_t *out_ch,
-                               zone_sign_reschedule_t *reschedule);
+int knot_dnssec_sign_update(zone_update_t *update, zone_sign_reschedule_t *reschedule);
 
 /*!
  * \brief Create new NCES3 salt if the old one is too old, and plan next resalt.

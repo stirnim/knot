@@ -18,6 +18,7 @@
 
 #include "dnssec/random.h"
 #include "knot/common/log.h"
+#include "knot/dnssec/zone-events.h"
 #include "knot/query/capture.h"
 #include "knot/query/requestor.h"
 #include "knot/nameserver/update.h"
@@ -154,6 +155,19 @@ static int process_normal(conf_t *conf, zone_t *zone, list_t *requests)
 		return ret;
 	}
 
+	// Sign update.
+	conf_val_t val = conf_zone_get(conf, C_DNSSEC_SIGNING, zone->name);
+	bool dnssec_enable = (up.flags & UPDATE_SIGN) && conf_bool(&val);
+	if (dnssec_enable) {
+		zone_sign_reschedule_t ignore = { 0 };
+		ret = knot_dnssec_sign_update(&up, &ignore);
+		if (ret != KNOT_EOK) {
+			zone_update_clear(&up);
+			set_rcodes(requests, KNOT_RCODE_SERVFAIL);
+			return ret;
+		}
+	}
+
 	// Apply changes.
 	ret = zone_update_commit(conf, &up);
 	zone_update_clear(&up);
@@ -167,7 +181,7 @@ static int process_normal(conf_t *conf, zone_t *zone, list_t *requests)
 	}
 
 	/* Sync zonefile immediately if configured. */
-	conf_val_t val = conf_zone_get(conf, C_ZONEFILE_SYNC, zone->name);
+	val = conf_zone_get(conf, C_ZONEFILE_SYNC, zone->name);
 	if (conf_int(&val) == 0) {
 		zone_events_schedule_now(zone, ZONE_EVENT_FLUSH);
 	}

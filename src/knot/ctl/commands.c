@@ -399,6 +399,7 @@ static int zone_txn_begin(zone_t *zone, ctl_args_t *args)
 
 	zone_update_flags_t type = (zone->contents == NULL) ? UPDATE_FULL : UPDATE_INCREMENTAL;
 	int ret = zone_update_init(zone->control_update, zone, type | UPDATE_SIGN | UPDATE_STRICT);
+
 	if (ret != KNOT_EOK) {
 		free(zone->control_update);
 		zone->control_update = NULL;
@@ -416,6 +417,18 @@ static int zone_txn_commit(zone_t *zone, ctl_args_t *args)
 		return KNOT_TXN_ENOTEXISTS;
 	}
 
+	// Sign update.
+	conf_val_t val = conf_zone_get(conf(), C_DNSSEC_SIGNING, zone->name);
+	bool dnssec_enable = (zone->control_update->flags & UPDATE_SIGN) && conf_bool(&val);
+	if (dnssec_enable) {
+		zone_sign_reschedule_t ignore = { 0 };
+		int ret = knot_dnssec_sign_update(zone->control_update, &ignore);
+		if (ret != KNOT_EOK) {
+			zone_update_clear(zone->control_update);
+			return ret;
+		}
+	}
+
 	int ret = zone_update_commit(conf(), zone->control_update);
 	if (ret != KNOT_EOK) {
 		/* Invalidate the transaction if aborted. */
@@ -431,7 +444,7 @@ static int zone_txn_commit(zone_t *zone, ctl_args_t *args)
 	zone->control_update = NULL;
 
 	/* Sync zonefile immediately if configured. */
-	conf_val_t val = conf_zone_get(conf(), C_ZONEFILE_SYNC, zone->name);
+	val = conf_zone_get(conf(), C_ZONEFILE_SYNC, zone->name);
 	if (conf_int(&val) == 0) {
 		zone_events_schedule_now(zone, ZONE_EVENT_FLUSH);
 	}
