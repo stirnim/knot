@@ -38,6 +38,8 @@
 #define DEFAULT_TIMEOUT_DIG	5
 #define DEFAULT_ALIGNMENT_SIZE	128
 
+dynarray_define(ednsopt, edns_opt_t *, DYNARRAY_VISIBILITY_PUBLIC)
+
 static const flags_t DEFAULT_FLAGS_DIG = {
 	.aa_flag = false,
 	.tc_flag = false,
@@ -888,6 +890,80 @@ static int opt_noedns(const char *arg, void *query)
 	return KNOT_EOK;
 }
 
+static int opt_ednsopt(const char *arg, void *query)
+{
+	char *data = NULL, *code = NULL, *pos = NULL, *argcopy = NULL;
+	int ret = KNOT_EOK;
+	query_t *q = query;
+
+	edns_opt_t *option = malloc(sizeof(*option));
+	if (option == NULL) {
+		return KNOT_ENOMEM;
+	}
+
+	argcopy = strdup(arg);
+	if (argcopy == NULL) {
+		goto ednsopt_fail;
+	}
+
+	// EDNS option data
+	pos = strchr(argcopy, ':');
+	if (pos != NULL) {
+		data = strdup(pos+1);
+		option->size = base64_decode_alloc((uint8_t *) data, strlen(data),
+						   &option->data);
+		if (option->size < 0) {
+			ret = KNOT_EINVAL;
+			goto ednsopt_fail;
+		}
+
+		*pos = '\0';
+	} else {
+		option->data = NULL;
+		option->size = 0;
+	}
+	// EDNS option code
+	code = strdup(argcopy);
+	ret = str_to_u16(code, &option->code);
+	if (ret != KNOT_EOK) {
+		ret = KNOT_EINVAL;
+		goto ednsopt_fail;
+	}
+	// Skip options with unique processing
+	switch (option->code) {
+	case KNOT_EDNS_OPTION_PADDING:
+		ret = opt_padding(arg, query);
+		break;
+	case KNOT_EDNS_OPTION_NSID:
+		ret = opt_nsid(arg, query);
+		break;
+	case KNOT_EDNS_OPTION_CLIENT_SUBNET:
+		ret = opt_subnet(arg, query);
+		break;
+	default:
+		ednsopt_dynarray_add(&q->ednsopt, &option);
+		goto ednsopt_finish;
+	}
+
+ednsopt_fail:
+	free(option->data);
+	free(option);
+ednsopt_finish:
+	free(argcopy);
+	free(code);
+	free(data);
+	return ret;
+}
+
+static int opt_noednsopt(const char *arg, void *query)
+{
+	query_t *q = query;
+
+	q->noednsopt = true;
+
+	return KNOT_EOK;
+}
+
 static int opt_time(const char *arg, void *query)
 {
 	query_t *q = query;
@@ -1056,6 +1132,9 @@ static const param_t kdig_opts2[] = {
 	{ "edns",           ARG_OPTIONAL, opt_edns },
 	{ "noedns",         ARG_NONE,     opt_noedns },
 
+	{ "ednsopt",	    ARG_OPTIONAL, opt_ednsopt },
+	{ "noednsopt",	    ARG_NONE,     opt_noednsopt },
+
 	{ "time",           ARG_REQUIRED, opt_time },
 	{ "notime",         ARG_NONE,     opt_notime },
 
@@ -1110,6 +1189,7 @@ query_t *query_create(const char *owner, const query_t *conf)
 		query->idn = true;
 		query->nsid = false;
 		query->edns = -1;
+		query->noednsopt = false;
 		query->padding = -1;
 		query->alignment = 0;
 		tls_params_init(&query->tls);
@@ -1148,6 +1228,8 @@ query_t *query_create(const char *owner, const query_t *conf)
 		query->idn = conf->idn;
 		query->nsid = conf->nsid;
 		query->edns = conf->edns;
+		query->ednsopt = conf->ednsopt;
+		query->noednsopt = conf->noednsopt;
 		query->padding = conf->padding;
 		query->alignment = conf->alignment;
 		tls_params_copy(&query->tls, &conf->tls);
@@ -1220,7 +1302,11 @@ void query_free(query_t *query)
 		}
 	}
 #endif // USE_DNSTAP
-
+	dynarray_foreach(ednsopt, edns_opt_t *, option, query->ednsopt) {
+		free((*option)->data);
+		free((*option));
+	}
+	ednsopt_dynarray_free(&query->ednsopt);
 	free(query->owner);
 	free(query->port);
 	free(query->subnet);

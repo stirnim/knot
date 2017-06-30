@@ -236,54 +236,69 @@ static int add_query_edns(knot_pkt_t *packet, const query_t *query, uint16_t max
 	if (query->flags.do_flag) {
 		knot_edns_set_do(&opt_rr);
 	}
-
-	/* Append NSID. */
-	if (query->nsid) {
-		ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_NSID,
-		                           0, NULL, &packet->mm);
-		if (ret != KNOT_EOK) {
-			knot_rrset_clear(&opt_rr, &packet->mm);
-			return ret;
-		}
-	}
-
-	/* Append EDNS-client-subnet. */
-	if (query->subnet != NULL) {
-		size_t size = knot_edns_client_subnet_size(query->subnet);
-		uint8_t data[size];
-
-		ret = knot_edns_client_subnet_write(data, size, query->subnet);
-		if (ret != KNOT_EOK) {
-			knot_rrset_clear(&opt_rr, &packet->mm);
-			return ret;
+	// If options not cleared
+	if (!query->noednsopt) {
+		/* Append NSID. */
+		if (query->nsid) {
+			ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_NSID,
+						   0, NULL, &packet->mm);
+			if (ret != KNOT_EOK) {
+				knot_rrset_clear(&opt_rr, &packet->mm);
+				return ret;
+			}
 		}
 
-		ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_CLIENT_SUBNET,
-		                           size, data, &packet->mm);
-		if (ret != KNOT_EOK) {
-			knot_rrset_clear(&opt_rr, &packet->mm);
-			return ret;
+		/* Append EDNS-client-subnet. */
+		if (query->subnet != NULL) {
+			size_t size = knot_edns_client_subnet_size(query->subnet);
+			uint8_t data[size];
+
+			ret = knot_edns_client_subnet_write(data, size, query->subnet);
+			if (ret != KNOT_EOK) {
+				knot_rrset_clear(&opt_rr, &packet->mm);
+				return ret;
+			}
+
+			ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_CLIENT_SUBNET,
+						   size, data, &packet->mm);
+			if (ret != KNOT_EOK) {
+				knot_rrset_clear(&opt_rr, &packet->mm);
+				return ret;
+			}
 		}
-	}
 
-	/* Append EDNS Padding. */
-	int padding = query->padding;
-	if (padding != -3 && query->alignment > 0) {
-		padding = knot_edns_alignment_size(packet->size,
-		                                   knot_rrset_size(&opt_rr),
-		                                   query->alignment);
-	} else if (query->padding == -2 || (query->padding == -1 && query->tls.enable)) {
-		padding = knot_edns_default_padding_size(packet, &opt_rr);
-	}
-	if (padding > -1) {
-		uint8_t zeros[padding];
-		memset(zeros, 0, sizeof(zeros));
+		query_t *q = (query_t *) query;
+		dynarray_foreach(ednsopt, edns_opt_t *, option, q->ednsopt) {
+			if (*option != NULL) {
+				ret = knot_edns_add_option(&opt_rr, (*option)->code,
+							   (*option)->size, (*option)->data,
+							   &packet->mm);
+				if (ret != KNOT_EOK) {
+					knot_rrset_clear(&opt_rr, &packet->mm);
+					return ret;
+				}
+			}
+		}
 
-		ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_PADDING,
-		                           padding, zeros, &packet->mm);
-		if (ret != KNOT_EOK) {
-			knot_rrset_clear(&opt_rr, &packet->mm);
-			return ret;
+		/* Append EDNS Padding. */
+		int padding = query->padding;
+		if (padding != -3 && query->alignment > 0) {
+			padding = knot_edns_alignment_size(packet->size,
+							   knot_rrset_size(&opt_rr),
+							   query->alignment);
+		} else if (query->padding == -2 || (query->padding == -1 && query->tls.enable)) {
+			padding = knot_edns_default_padding_size(packet, &opt_rr);
+		}
+		if (padding > -1) {
+			uint8_t zeros[padding];
+			memset(zeros, 0, sizeof(zeros));
+
+			ret = knot_edns_add_option(&opt_rr, KNOT_EDNS_OPTION_PADDING,
+						   padding, zeros, &packet->mm);
+			if (ret != KNOT_EOK) {
+				knot_rrset_clear(&opt_rr, &packet->mm);
+				return ret;
+			}
 		}
 	}
 
